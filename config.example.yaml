@@ -1,20 +1,20 @@
-# ark 配置文件
-# 默认位置：~/.config/ark/config.yaml
-# 修改后执行 `ark reload` 生效。
+# ark configuration
+# Default location: ~/.config/ark/config.yaml
+# Run `ark reload` after editing to apply changes.
 
-# 以下全局选项均可省略
-# ssh_binary: /usr/bin/ssh      # 调用的 ssh 程序（绝对路径）
-# connect_timeout: 10s          # 建立 SSH 连接的超时时间
-# ssh_config_file: ~/.ssh/config # 指定另一份 ssh 配置（相当于 ssh -F）
+# All global options below are optional
+# ssh_binary: /usr/bin/ssh      # ssh program to run (absolute path)
+# connect_timeout: 10s          # timeout for establishing the SSH connection
+# ssh_config_file: ~/.ssh/config # use a different ssh config (same as ssh -F)
 
 tunnels:
-  # 本地 127.0.0.1:4333 / [::1]:4333 → 经 ubuntu@203.0.113.180 → 服务器上的 localhost:4333
+  # local 127.0.0.1:4333 / [::1]:4333 → via ubuntu@203.0.113.180 → localhost:4333 on the server
   - name: prod-mysql
     local_port: 4333
     ssh: ubuntu@203.0.113.180
     remote: localhost:4333
 
-  # ssh 也可以写 ~/.ssh/config 里的 Host 别名（支持 ProxyJump 等全部配置）
+  # ssh can also be a Host alias from ~/.ssh/config (ProxyJump and all other options work)
   - name: prod-redis
     local_port: 6379
     ssh: prod-redis

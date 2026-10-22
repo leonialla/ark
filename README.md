@@ -1,53 +1,55 @@
 # ark
 
-让 SSH 隧道“永远在线”的 macOS 小工具。名字取自方舟（ark）：不管网络怎么断、怎么换，都把你的连接安全送到对岸的内网服务。
+English | [简体中文](README.zh-CN.md)
 
-它由两个程序组成：
+A small macOS tool that keeps your SSH tunnels always on. The name comes from the ark: however the network drops or changes, it carries your connections safely across to the private services on the other side.
 
-- `arkd`：常驻后台的守护进程，由 launchd 负责运行；
-- `ark`：命令行客户端，用来查看状态、重新加载配置，以及安装或卸载 `arkd`。
+It has two programs:
 
-线上的数据库、Redis 等服务不对外暴露端口，本地一般用 `ssh -fN -L 4333:localhost:4333 ubuntu@host` 打隧道访问。问题是换网络、合盖睡眠后隧道会悄悄断掉，每次都得手动重连。
+- `arkd`: the background daemon, run by launchd;
+- `ark`: the command-line client, which shows status, reloads the config, and installs or removes `arkd`.
 
-`arkd` 常驻后台，在配置好的本地端口（只监听 `127.0.0.1` 和 `::1`）上等待连接：
+Production databases, Redis and similar services usually don't expose their ports to the internet, so you reach them from your laptop through a tunnel like `ssh -fN -L 4333:localhost:4333 ubuntu@host`. The trouble is that the tunnel quietly dies when you switch networks or close the lid, and you have to reconnect it by hand every time.
 
-- 有连接进来时，如果到对应服务器的 SSH 连接不存在或已断开，就自动建立，再把数据转发过去；
-- 同一台服务器只保持一条 SSH 连接（OpenSSH ControlMaster），上面可以同时跑多个客户端连接；
-- 检测到睡眠唤醒或主网卡变化（比如换了 Wi-Fi）时，主动丢弃已经失效的 SSH 连接，下一次连接时重建。VPN 连接、断开和虚拟网卡的变化会被忽略。
+`arkd` stays in the background and waits for connections on the configured local ports (it listens only on `127.0.0.1` and `::1`):
 
-它直接调用系统自带的 `/usr/bin/ssh`，所以 `~/.ssh/config` 里的 Host 别名、`ProxyJump`、`IdentityFile`、ssh-agent 都和在终端里一样能用。只支持 TCP。
+- When a connection comes in and the SSH connection to that server is missing or dead, it establishes one, then relays the traffic through it.
+- It keeps one SSH connection per server (an OpenSSH ControlMaster), and many client connections share it.
+- When it detects a wake from sleep or a change of the primary network interface (for example, a different Wi-Fi network), it drops the stale SSH connections and rebuilds them on the next connection. VPNs coming up or going down and changes to virtual interfaces are ignored.
 
-## 安装
+It calls the system `/usr/bin/ssh` directly, so Host aliases, `ProxyJump`, `IdentityFile` and ssh-agent from `~/.ssh/config` all work exactly as they do in your terminal. TCP only.
 
-需要 Go 1.26+。
+## Installation
+
+Requires Go 1.26+.
 
 ```bash
 make install
 ```
 
-这一步会把 `arkd` 和 `ark` 装到 `~/.local/bin/`（`ark install` 会在同一目录里找 `arkd`），然后执行 `ark install`：
+This installs `arkd` and `ark` into `~/.local/bin/` (`ark install` looks for `arkd` in the same directory), then runs `ark install`:
 
-- 如果 `~/.config/ark/config.yaml` 不存在，只会写入一份示例配置。改好后再执行一次 `ark install`。
-- 如果配置已存在，会安装 launchd 用户代理 `~/Library/LaunchAgents/local.ark.plist`。之后登录时自动启动，进程退出后自动拉起。
+- If `~/.config/ark/config.yaml` does not exist, it only writes an example config there. Edit it, then run `ark install` again.
+- If the config exists, it installs the launchd user agent `~/Library/LaunchAgents/local.ark.plist`. From then on `arkd` starts at login and is restarted whenever it exits.
 
-卸载：
+To uninstall:
 
 ```bash
 make uninstall
 ```
 
-卸载会保留配置和日志。
+Uninstalling keeps your config and logs.
 
-## 配置
+## Configuration
 
-`~/.config/ark/config.yaml`：
+`~/.config/ark/config.yaml`:
 
 ```yaml
 tunnels:
   - name: prod-mysql
-    local_port: 4333            # 本地监听端口
-    ssh: ubuntu@203.0.113.180   # user@host[:port]，或 ~/.ssh/config 里的 Host 别名
-    remote: localhost:4333      # 在服务器上看到的目标地址
+    local_port: 4333            # local port to listen on
+    ssh: ubuntu@203.0.113.180   # user@host[:port], or a Host alias from ~/.ssh/config
+    remote: localhost:4333      # target address as seen from the server
 
   - name: prod-redis
     local_port: 6379
@@ -55,23 +57,23 @@ tunnels:
     remote: 10.0.1.5:6379
 ```
 
-可选的全局项包括 `ssh_binary`（默认 `/usr/bin/ssh`）、`connect_timeout`（默认 `10s`）、`ssh_config_file`（相当于 `ssh -F`），详见 [config.example.yaml](config.example.yaml)。
+Optional global settings include `ssh_binary` (default `/usr/bin/ssh`), `connect_timeout` (default `10s`) and `ssh_config_file` (equivalent to `ssh -F`). See [config.example.yaml](config.example.yaml).
 
-修改配置后执行下面的命令生效：
+After editing the config, apply it with:
 
 ```bash
 ark reload
 ```
 
-reload 只会影响新增、删除或修改过的端口，其余端口上的连接不受影响。如果配置有错，reload 会报错，并继续使用旧配置。
+A reload only affects ports that were added, removed or changed; connections on the other ports are left alone. If the config is invalid, reload reports the error and keeps running with the old config.
 
-## 查看状态
+## Status
 
 ```bash
 ark status
 ```
 
-输出示例：
+Example output:
 
 ```
 NAME        PORT  SSH                   REMOTE          LISTEN  STATE  CONNS  SINCE    LAST ERROR
@@ -79,15 +81,15 @@ prod-mysql  4333  ubuntu@203.0.113.180  localhost:4333  ok      up     2      5m
 prod-redis  6379  prod-redis            10.0.1.5:6379   ok      error  0      30s ago  ssh: connect to host … Operation timed out
 ```
 
-- `STATE` 是到这台服务器的 SSH 连接状态，取值为 `idle`（还没连 / 已主动断开）、`connecting`、`up`、`error`。
-- 加 `--json` 可以输出 JSON 格式。
+- `STATE` is the state of the SSH connection to that server: `idle` (not connected yet, or deliberately dropped), `connecting`, `up` or `error`.
+- Add `--json` for JSON output.
 
-日志位于 `~/Library/Logs/ark/arkd.log`，自动轮转（10MB × 3 份）。
+Logs are written to `~/Library/Logs/ark/arkd.log` and rotated automatically (10MB × 3 files).
 
-## 排查
+## Troubleshooting
 
-- **连不上，日志里有 `Host key verification failed`**：服务以非交互模式运行 ssh（`BatchMode=yes`），不会弹出确认新主机的提示。先在终端里手动 `ssh <目标>` 一次，把主机指纹加入 `known_hosts`。
-- **私钥有密码**：先用 `ssh-add --apple-use-keychain` 把私钥加到 agent 或钥匙串里。服务不会询问密码。
-- **端口被以前手动开的 `ssh -L` 占着**：如果这个 `ssh` 进程是你自己的，并且转发规则和配置完全一致（本地端口相同、绑定在回环地址上、远程地址相同、SSH 目标的 user/host/port 相同，也没有用 `-J`、`-o HostName=` 这类改变目标的选项），服务会结束它（先 SIGTERM，3 秒内没退出再 SIGKILL），然后接管端口，并在日志里记一条 warn。比较是逐字的，`localhost` 和 `127.0.0.1` 算作不同。
-- **`LISTEN` 显示 `bind failed: ... (held by node pid 812)`**：端口被其他程序占用，服务不会动它，只显示占用者是谁。转发规则不同的 `ssh` 会显示为 `ssh pid 123 (different forward)`。你自己关掉占用的程序后，服务每 5 秒会重试一次，端口释放后自动接管。
-- **前台调试**：先 `launchctl bootout gui/$(id -u)/local.ark` 停掉后台服务，再运行 `arkd --log - --debug`，日志会直接打印到终端。
+- **Can't connect, and the log says `Host key verification failed`**: ssh runs non-interactively (`BatchMode=yes`), so it never asks you to confirm a new host. Run `ssh <target>` once by hand in a terminal to add the host key to `known_hosts`.
+- **Your private key has a passphrase**: add the key to the agent or the keychain first with `ssh-add --apple-use-keychain`. The daemon never asks for passphrases.
+- **The port is held by an `ssh -L` you started by hand earlier**: if that `ssh` process is yours and its forward matches the config exactly (same local port bound to a loopback address, same remote address, same SSH target user/host/port, and no target-changing options such as `-J` or `-o HostName=`), `arkd` stops it (SIGTERM, then SIGKILL if it hasn't exited within 3 seconds), takes over the port, and logs a warning. The comparison is literal: `localhost` and `127.0.0.1` count as different.
+- **`LISTEN` shows `bind failed: ... (held by node pid 812)`**: another program holds the port. `arkd` leaves it alone and only reports who holds it; an `ssh` with a different forward shows up as `ssh pid 123 (different forward)`. Once you close that program, `arkd` retries every 5 seconds and takes over the port when it is free.
+- **Debugging in the foreground**: stop the background service with `launchctl bootout gui/$(id -u)/local.ark`, then run `arkd --log - --debug` to print the log to your terminal.
