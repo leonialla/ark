@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"ark/internal/config"
 )
@@ -82,6 +83,13 @@ func writeConfigIfMissing(path string, example []byte) error {
 
 func domain() string { return fmt.Sprintf("gui/%d", os.Getuid()) }
 
+// launchctl runs launchctl with args and returns its combined output.
+var launchctl = func(args ...string) ([]byte, error) {
+	return exec.Command("launchctl", args...).CombinedOutput()
+}
+
+var pollInterval = 100 * time.Millisecond
+
 // Install writes the plist and (re)loads the agent. If configPath does not exist
 // it only writes the example config there and returns createdConfig=true without
 // loading anything, so the daemon never starts on placeholder tunnels.
@@ -102,16 +110,37 @@ func Install(binary, configPath, logDir string, example []byte) (createdConfig b
 	if err := os.WriteFile(plist, RenderPlist(binary, configPath, logDir), 0o644); err != nil {
 		return false, err
 	}
-	exec.Command("launchctl", "bootout", domain()+"/"+Label).Run()
-	if out, err := exec.Command("launchctl", "bootstrap", domain(), plist).CombinedOutput(); err != nil {
-		return false, fmt.Errorf("launchctl bootstrap: %v: %s", err, strings.TrimSpace(string(out)))
+	stop()
+	// Right after a bootout launchd may still be tearing the old job down and
+	// reject the bootstrap with "Input/output error", so retry a few times.
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		if attempt > 0 {
+			time.Sleep(5 * pollInterval)
+		}
+		out, err := launchctl("bootstrap", domain(), plist)
+		if err == nil {
+			return false, nil
+		}
+		lastErr = fmt.Errorf("launchctl bootstrap: %v: %s", err, strings.TrimSpace(string(out)))
 	}
-	return false, nil
+	return false, lastErr
+}
+
+// stop boots out the agent and waits up to 5s until launchd no longer knows it.
+func stop() {
+	launchctl("bootout", domain()+"/"+Label)
+	for i := 0; i < 50; i++ {
+		if _, err := launchctl("print", domain()+"/"+Label); err != nil {
+			return
+		}
+		time.Sleep(pollInterval)
+	}
 }
 
 // Uninstall stops the agent and removes the plist. Config and logs are kept.
 func Uninstall() error {
-	exec.Command("launchctl", "bootout", domain()+"/"+Label).Run()
+	stop()
 	if err := os.Remove(PlistPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}

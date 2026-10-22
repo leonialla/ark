@@ -3,12 +3,14 @@ package launchd
 import (
 	"bytes"
 	"encoding/xml"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRenderPlist(t *testing.T) {
@@ -101,5 +103,75 @@ func TestInstallWithoutConfigOnlyWritesExample(t *testing.T) {
 	}
 	if _, err := os.Stat(PlistPath()); !os.IsNotExist(err) {
 		t.Fatalf("plist written before config existed: %v", err)
+	}
+}
+
+// fakeLaunchctl simulates a job that takes a few polls to unload and a
+// bootstrap that fails once with "Input/output error" right after bootout.
+type fakeLaunchctl struct {
+	printsUntilGone int
+	bootstrapFails  int
+	calls           []string
+}
+
+func (f *fakeLaunchctl) run(args ...string) ([]byte, error) {
+	f.calls = append(f.calls, args[0])
+	switch args[0] {
+	case "print":
+		if f.printsUntilGone > 0 {
+			f.printsUntilGone--
+			return nil, nil
+		}
+		return []byte("Could not find service"), errors.New("exit status 113")
+	case "bootstrap":
+		if f.bootstrapFails > 0 {
+			f.bootstrapFails--
+			return []byte("Bootstrap failed: 5: Input/output error"), errors.New("exit status 5")
+		}
+	}
+	return nil, nil
+}
+
+func installWithFake(t *testing.T, f *fakeLaunchctl) error {
+	t.Helper()
+	old, oldPoll := launchctl, pollInterval
+	launchctl, pollInterval = f.run, time.Millisecond
+	t.Cleanup(func() { launchctl, pollInterval = old, oldPoll })
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cfg := filepath.Join(home, "config.yaml")
+	os.WriteFile(cfg, []byte("tunnels: []"), 0o600)
+	_, err := Install("/usr/local/bin/arkd", cfg, filepath.Join(home, "logs"), nil)
+	return err
+}
+
+func TestInstallWaitsForOldJobToUnload(t *testing.T) {
+	f := &fakeLaunchctl{printsUntilGone: 3}
+	if err := installWithFake(t, f); err != nil {
+		t.Fatal(err)
+	}
+	last := -1
+	for i, c := range f.calls {
+		if c == "print" {
+			last = i
+		}
+	}
+	if last < 0 || f.calls[len(f.calls)-1] != "bootstrap" || last > len(f.calls)-2 {
+		t.Fatalf("bootstrap must come after the job is gone: calls = %v", f.calls)
+	}
+}
+
+func TestInstallRetriesBootstrap(t *testing.T) {
+	f := &fakeLaunchctl{bootstrapFails: 2}
+	if err := installWithFake(t, f); err != nil {
+		t.Fatalf("install failed despite transient bootstrap errors: %v", err)
+	}
+}
+
+func TestInstallGivesUpOnPersistentBootstrapFailure(t *testing.T) {
+	f := &fakeLaunchctl{bootstrapFails: 100}
+	err := installWithFake(t, f)
+	if err == nil || !strings.Contains(err.Error(), "Input/output error") {
+		t.Fatalf("err = %v", err)
 	}
 }
