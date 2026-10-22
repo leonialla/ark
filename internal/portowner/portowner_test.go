@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"ssh-tunnel-daemon/internal/config"
+	"ark/internal/config"
 )
 
 func TestParseLsof(t *testing.T) {

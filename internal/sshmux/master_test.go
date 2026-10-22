@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"ssh-tunnel-daemon/internal/testsshd"
+	"ark/internal/testsshd"
 )
 
 func newMaster(t *testing.T, s *testsshd.Server, target string) *Master {

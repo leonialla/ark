@@ -7,7 +7,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"ssh-tunnel-daemon/internal/daemon"
+	"ark/internal/daemon"
 )
 
 const maxErrLen = 60

@@ -24,7 +24,7 @@ tunnels:
 	if cfg.ConnectTimeout != 10*time.Second {
 		t.Errorf("ConnectTimeout = %v", cfg.ConnectTimeout)
 	}
-	if want := filepath.Join(os.TempDir(), "stdd"); cfg.SocketDir != want {
+	if want := filepath.Join(os.TempDir(), "ark"); cfg.SocketDir != want {
 		t.Errorf("SocketDir = %q, want %q", cfg.SocketDir, want)
 	}
 	if got := cfg.Tunnels[0].Label(); got != "4333" {
@@ -141,7 +141,7 @@ tunnels:
 
 func TestDefaultPath(t *testing.T) {
 	home, _ := os.UserHomeDir()
-	if got := DefaultPath(); got != filepath.Join(home, ".config/ssh-tunnel-daemon/config.yaml") {
+	if got := DefaultPath(); got != filepath.Join(home, ".config/ark/config.yaml") {
 		t.Errorf("DefaultPath = %q", got)
 	}
 }

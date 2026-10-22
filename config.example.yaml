@@ -1,6 +1,6 @@
-# ssh-tunnel-daemon 配置文件
-# 默认位置：~/.config/ssh-tunnel-daemon/config.yaml
-# 修改后执行 `ssh-tunnel-daemon reload` 生效。
+# ark 配置文件
+# 默认位置：~/.config/ark/config.yaml
+# 修改后执行 `ark reload` 生效。
 
 # 以下全局选项均可省略
 # ssh_binary: /usr/bin/ssh      # 调用的 ssh 程序（绝对路径）

@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"ssh-tunnel-daemon/internal/daemon"
+	"ark/internal/daemon"
 )
 
 // ErrNotRunning means nothing is listening on the control socket.

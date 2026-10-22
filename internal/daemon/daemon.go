@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"ssh-tunnel-daemon/internal/config"
-	"ssh-tunnel-daemon/internal/netwatch"
-	"ssh-tunnel-daemon/internal/proxy"
-	"ssh-tunnel-daemon/internal/sshmux"
+	"ark/internal/config"
+	"ark/internal/netwatch"
+	"ark/internal/proxy"
+	"ark/internal/sshmux"
 )
 
 type TunnelStatus struct {

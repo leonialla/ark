@@ -47,9 +47,9 @@ type rawConfig struct {
 	Tunnels        []Tunnel `yaml:"tunnels"`
 }
 
-// DefaultPath is ~/.config/ssh-tunnel-daemon/config.yaml.
+// DefaultPath is ~/.config/ark/config.yaml.
 func DefaultPath() string {
-	return ExpandHome("~/.config/ssh-tunnel-daemon/config.yaml")
+	return ExpandHome("~/.config/ark/config.yaml")
 }
 
 // ExpandHome replaces a leading "~/" with the user's home directory.
@@ -89,7 +89,7 @@ func Parse(data []byte) (*Config, error) {
 		cfg.SSHBinary = "/usr/bin/ssh"
 	}
 	if cfg.SocketDir == "" {
-		cfg.SocketDir = filepath.Join(os.TempDir(), "stdd")
+		cfg.SocketDir = filepath.Join(os.TempDir(), "ark")
 	}
 	cfg.ConnectTimeout = 10 * time.Second
 	if raw.ConnectTimeout != "" {

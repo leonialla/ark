@@ -165,7 +165,7 @@ func EchoServer(t testing.TB) string {
 // ShortTempDir returns a temp dir with a short path, for unix sockets (macOS limit is 104 bytes).
 func ShortTempDir(t testing.TB) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "stdd")
+	dir, err := os.MkdirTemp("/tmp", "ark")
 	if err != nil {
 		t.Fatal(err)
 	}

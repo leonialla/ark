@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"ssh-tunnel-daemon/internal/daemon"
-	"ssh-tunnel-daemon/internal/testsshd"
+	"ark/internal/daemon"
+	"ark/internal/testsshd"
 )
 
 type fake struct {

@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"ssh-tunnel-daemon/internal/config"
+	"ark/internal/config"
 )
 
-const Label = "local.ssh-tunnel-daemon"
+const Label = "local.ark"
 
 func PlistPath() string {
 	return config.ExpandHome("~/Library/LaunchAgents/" + Label + ".plist")
@@ -26,7 +26,7 @@ func esc(s string) string {
 	return b.String()
 }
 
-// RenderPlist returns a LaunchAgent plist that runs `binary run --config configPath`
+// RenderPlist returns a LaunchAgent plist that runs `binary --config configPath`
 // at login and restarts it whenever it exits.
 func RenderPlist(binary, configPath, logDir string) []byte {
 	out := esc(filepath.Join(logDir, "launchd.out.log"))
@@ -39,7 +39,6 @@ func RenderPlist(binary, configPath, logDir string) []byte {
 	<key>ProgramArguments</key>
 	<array>
 		<string>%s</string>
-		<string>run</string>
 		<string>--config</string>
 		<string>%s</string>
 	</array>

@@ -1,5 +1,5 @@
-// Package sshtunneldaemon holds files embedded into the binary.
-package sshtunneldaemon
+// Package ark holds files embedded into the binary.
+package ark
 
 import _ "embed"
 

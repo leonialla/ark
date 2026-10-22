@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"ssh-tunnel-daemon/internal/netwatch"
-	"ssh-tunnel-daemon/internal/testsshd"
+	"ark/internal/netwatch"
+	"ark/internal/testsshd"
 )
 
 type env struct {

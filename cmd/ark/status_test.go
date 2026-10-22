@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"ssh-tunnel-daemon/internal/daemon"
+	"ark/internal/daemon"
 )
 
 func TestRenderTable(t *testing.T) {

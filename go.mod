@@ -1,4 +1,4 @@
-module ssh-tunnel-daemon
+module ark
 
 go 1.26.3
 

@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"ssh-tunnel-daemon/internal/config"
-	"ssh-tunnel-daemon/internal/portowner"
-	"ssh-tunnel-daemon/internal/sshmux"
+	"ark/internal/config"
+	"ark/internal/portowner"
+	"ark/internal/sshmux"
 )
 
 // bindRetry is how often a failed bind is retried.

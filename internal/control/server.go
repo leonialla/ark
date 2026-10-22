@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"ssh-tunnel-daemon/internal/config"
-	"ssh-tunnel-daemon/internal/daemon"
+	"ark/internal/config"
+	"ark/internal/daemon"
 )
 
 type Backend interface {
@@ -20,9 +20,9 @@ type Backend interface {
 	Reload() error
 }
 
-// DefaultSocketPath is ~/.config/ssh-tunnel-daemon/daemon.sock.
+// DefaultSocketPath is ~/.config/ark/arkd.sock.
 func DefaultSocketPath() string {
-	return config.ExpandHome("~/.config/ssh-tunnel-daemon/daemon.sock")
+	return config.ExpandHome("~/.config/ark/arkd.sock")
 }
 
 // Serve answers GET /status and POST /reload on sockPath until ctx ends.

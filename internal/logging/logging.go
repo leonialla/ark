@@ -10,10 +10,10 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// DefaultPath is ~/Library/Logs/ssh-tunnel-daemon/daemon.log.
+// DefaultPath is ~/Library/Logs/ark/arkd.log.
 func DefaultPath() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "Library/Logs/ssh-tunnel-daemon/daemon.log")
+	return filepath.Join(home, "Library/Logs/ark/arkd.log")
 }
 
 type nopCloser struct{}

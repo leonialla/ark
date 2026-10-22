@@ -16,7 +16,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"ssh-tunnel-daemon/internal/config"
+	"ark/internal/config"
 )
 
 type Owner struct {

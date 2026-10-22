@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"ssh-tunnel-daemon/internal/config"
-	"ssh-tunnel-daemon/internal/sshmux"
-	"ssh-tunnel-daemon/internal/testsshd"
+	"ark/internal/config"
+	"ark/internal/sshmux"
+	"ark/internal/testsshd"
 )
 
 type fixture struct {

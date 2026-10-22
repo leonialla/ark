@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"ssh-tunnel-daemon/internal/sshmux"
+	"ark/internal/sshmux"
 )
 
 const (

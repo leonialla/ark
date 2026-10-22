@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewWritesFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "sub", "daemon.log")
+	path := filepath.Join(t.TempDir(), "sub", "arkd.log")
 	log, closer, err := New(path, false)
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +27,7 @@ func TestNewWritesFile(t *testing.T) {
 }
 
 func TestNewDebug(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "daemon.log")
+	path := filepath.Join(t.TempDir(), "arkd.log")
 	log, closer, err := New(path, true)
 	if err != nil {
 		t.Fatal(err)

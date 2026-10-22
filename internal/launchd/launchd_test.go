@@ -12,7 +12,7 @@ import (
 )
 
 func TestRenderPlist(t *testing.T) {
-	out := RenderPlist("/Users/a&b/.local/bin/ssh-tunnel-daemon", "/Users/a&b/.config/ssh-tunnel-daemon/config.yaml", "/Users/a&b/Library/Logs/ssh-tunnel-daemon")
+	out := RenderPlist("/Users/a&b/.local/bin/arkd", "/Users/a&b/.config/ark/config.yaml", "/Users/a&b/Library/Logs/ark")
 	dec := xml.NewDecoder(bytes.NewReader(out))
 	dec.Strict = true
 	dec.Entity = xml.HTMLEntity
@@ -25,16 +25,21 @@ func TestRenderPlist(t *testing.T) {
 	}
 	s := string(out)
 	for _, want := range []string{
-		"<string>local.ssh-tunnel-daemon</string>",
-		"<string>/Users/a&amp;b/.local/bin/ssh-tunnel-daemon</string>",
-		"<string>run</string>",
+		"<string>local.ark</string>",
+		"<string>/Users/a&amp;b/.local/bin/arkd</string>",
 		"<string>--config</string>",
-		"<string>/Users/a&amp;b/.config/ssh-tunnel-daemon/config.yaml</string>",
-		"<string>/Users/a&amp;b/Library/Logs/ssh-tunnel-daemon/launchd.out.log</string>",
+		"<string>/Users/a&amp;b/.config/ark/config.yaml</string>",
+		"<string>/Users/a&amp;b/Library/Logs/ark/launchd.out.log</string>",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("missing %s", want)
 		}
+	}
+	if strings.Contains(s, "<string>run</string>") {
+		t.Error("arkd takes no subcommand")
+	}
+	if !regexp.MustCompile(`<array>\s*<string>/Users/a&amp;b/.local/bin/arkd</string>\s*<string>--config</string>`).MatchString(s) {
+		t.Error("ProgramArguments should be [arkd, --config, path]")
 	}
 	for _, key := range []string{"KeepAlive", "RunAtLoad"} {
 		if !regexp.MustCompile(`<key>` + key + `</key>\s*<true/>`).MatchString(s) {
@@ -48,20 +53,20 @@ func TestRenderPlist(t *testing.T) {
 
 func TestPlistPath(t *testing.T) {
 	home, _ := os.UserHomeDir()
-	if got := PlistPath(); got != filepath.Join(home, "Library/LaunchAgents/local.ssh-tunnel-daemon.plist") {
+	if got := PlistPath(); got != filepath.Join(home, "Library/LaunchAgents/local.ark.plist") {
 		t.Fatalf("PlistPath = %s", got)
 	}
 }
 
 func TestCheckBinaryLocation(t *testing.T) {
-	if err := CheckBinaryLocation(filepath.Join(os.TempDir(), "go-build123/b001/exe/ssh-tunnel-daemon")); err == nil {
+	if err := CheckBinaryLocation(filepath.Join(os.TempDir(), "go-build123/b001/exe/arkd")); err == nil {
 		t.Error("temp binary accepted")
 	}
 	if err := CheckBinaryLocation("/private/var/folders/xx/T/go-build99/exe/x"); err == nil {
 		t.Error("go-build binary accepted")
 	}
 	home, _ := os.UserHomeDir()
-	if err := CheckBinaryLocation(filepath.Join(home, ".local/bin/ssh-tunnel-daemon")); err != nil {
+	if err := CheckBinaryLocation(filepath.Join(home, ".local/bin/arkd")); err != nil {
 		t.Errorf("stable binary rejected: %v", err)
 	}
 }
@@ -87,7 +92,7 @@ func TestInstallWithoutConfigOnlyWritesExample(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	cfg := filepath.Join(home, "cfg", "config.yaml")
-	created, err := Install("/usr/local/bin/ssh-tunnel-daemon", cfg, filepath.Join(home, "logs"), []byte("example"))
+	created, err := Install("/usr/local/bin/arkd", cfg, filepath.Join(home, "logs"), []byte("example"))
 	if err != nil || !created {
 		t.Fatalf("created=%v err=%v", created, err)
 	}

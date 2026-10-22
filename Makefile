@@ -1,19 +1,19 @@
-BIN := bin/ssh-tunnel-daemon
 PREFIX ?= $(HOME)/.local/bin
 
 .PHONY: build test install uninstall
 
 build:
-	go build -o $(BIN) ./cmd/ssh-tunnel-daemon
+	go build -o bin/arkd ./cmd/arkd
+	go build -o bin/ark ./cmd/ark
 
 test:
 	go test -race ./...
 
 install: build
 	mkdir -p $(PREFIX)
-	install -m 0755 $(BIN) $(PREFIX)/ssh-tunnel-daemon
-	$(PREFIX)/ssh-tunnel-daemon install
+	install -m 0755 bin/arkd bin/ark $(PREFIX)/
+	$(PREFIX)/ark install
 
 uninstall:
-	-$(PREFIX)/ssh-tunnel-daemon uninstall
-	rm -f $(PREFIX)/ssh-tunnel-daemon
+	-$(PREFIX)/ark uninstall
+	rm -f $(PREFIX)/arkd $(PREFIX)/ark
