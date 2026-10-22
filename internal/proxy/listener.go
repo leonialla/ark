@@ -3,14 +3,19 @@
 package proxy
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"strconv"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"ssh-tunnel-daemon/internal/config"
+	"ssh-tunnel-daemon/internal/portowner"
 	"ssh-tunnel-daemon/internal/sshmux"
 )
 
@@ -18,6 +23,8 @@ import (
 var bindRetry = 5 * time.Second
 
 var listen = net.Listen
+
+var findOwners = portowner.Find
 
 type ListenerStatus struct {
 	Listen      string // "starting", "ok" or "bind failed: <err>"
@@ -39,7 +46,9 @@ type Listener struct {
 	conns     map[net.Conn]struct{}
 	stopped   bool
 	stop      chan struct{}
-	wg        sync.WaitGroup
+	// tookOver holds pids we already tried to take the port from, so we try once each.
+	tookOver map[int]bool
+	wg       sync.WaitGroup
 }
 
 func NewListener(t config.Tunnel, m *sshmux.Master, log *slog.Logger) *Listener {
@@ -47,12 +56,13 @@ func NewListener(t config.Tunnel, m *sshmux.Master, log *slog.Logger) *Listener 
 		log = slog.New(slog.DiscardHandler)
 	}
 	return &Listener{
-		t:      t,
-		m:      m,
-		log:    log.With("tunnel", t.Label(), "port", t.LocalPort),
-		listen: "starting",
-		conns:  map[net.Conn]struct{}{},
-		stop:   make(chan struct{}),
+		t:        t,
+		m:        m,
+		log:      log.With("tunnel", t.Label(), "port", t.LocalPort),
+		listen:   "starting",
+		conns:    map[net.Conn]struct{}{},
+		tookOver: map[int]bool{},
+		stop:     make(chan struct{}),
 	}
 }
 
@@ -68,12 +78,22 @@ func (l *Listener) Start() {
 			if err == nil {
 				return
 			}
+			msg := "bind failed: " + err.Error()
+			if errors.Is(err, syscall.EADDRINUSE) {
+				holders, took := l.takeover()
+				if took {
+					continue
+				}
+				if holders != "" {
+					msg += " (held by " + holders + ")"
+				}
+			}
 			l.mu.Lock()
-			first := l.listen != "bind failed: "+err.Error()
-			l.listen = "bind failed: " + err.Error()
+			first := l.listen != msg
+			l.listen = msg
 			l.mu.Unlock()
 			if first {
-				l.log.Error("bind failed, will retry", "err", err, "every", bindRetry)
+				l.log.Error("bind failed, will retry", "err", msg, "every", bindRetry)
 			}
 			select {
 			case <-l.stop:
@@ -114,6 +134,46 @@ func (l *Listener) bind() error {
 	l.mu.Unlock()
 	l.log.Info("listening", "remote", l.t.Remote, "ssh", l.t.SSH)
 	return nil
+}
+
+// takeover stops the port's holder if it is our own user's ssh -L with exactly this
+// tunnel's forward, reporting true so the bind is retried at once. Otherwise it
+// describes the holders, e.g. "ssh pid 123 (different forward), node pid 9".
+func (l *Listener) takeover() (holders string, took bool) {
+	owners, err := findOwners(l.t.LocalPort)
+	if err != nil {
+		return "", false
+	}
+	var descs []string
+	for _, o := range owners {
+		if o.UID == os.Getuid() && !l.tookOver[o.PID] && portowner.SameForward(o.Args, l.t, l.m.SSHConfigFile()) {
+			l.tookOver[o.PID] = true
+			l.log.Warn("port held by an ssh -L with the same forward, taking over", "pid", o.PID, "args", strings.Join(o.Args, " "))
+			terminate(o.PID)
+			return "", true
+		}
+		d := o.String()
+		if o.Command == "ssh" {
+			d += " (different forward)"
+		}
+		descs = append(descs, d)
+	}
+	return strings.Join(descs, ", "), false
+}
+
+// terminate sends SIGTERM and waits up to 3s, then SIGKILL.
+func terminate(pid int) {
+	if syscall.Kill(pid, syscall.SIGTERM) != nil {
+		return
+	}
+	for i := 0; i < 30; i++ {
+		if syscall.Kill(pid, 0) != nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	syscall.Kill(pid, syscall.SIGKILL)
+	time.Sleep(200 * time.Millisecond)
 }
 
 func (l *Listener) accept(s net.Listener) {

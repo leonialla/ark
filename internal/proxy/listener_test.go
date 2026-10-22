@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"os/exec"
 	"strings"
 	"syscall"
 	"testing"
@@ -277,5 +279,91 @@ func TestPoolOnDeadMasterAllRecover(t *testing.T) {
 	}
 	if e := f.l.Status().LastError; e != "" {
 		t.Logf("LastError = %q", e)
+	}
+}
+
+// occupyWithSSH starts `ssh -N -L 127.0.0.1:port:<remote> testhost` and waits until it listens.
+func occupyWithSSH(t *testing.T, s *testsshd.Server, port int, remote string) *exec.Cmd {
+	t.Helper()
+	cmd := exec.Command("/usr/bin/ssh", "-F", s.ClientConfig, "-N", "-o", "ExitOnForwardFailure=yes",
+		"-L", fmt.Sprintf("127.0.0.1:%d:%s", port, remote), "testhost")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if c, err := net.Dial("tcp", v4(port)); err == nil {
+			c.Close()
+			return cmd
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("ssh -L did not start listening")
+	return nil
+}
+
+func newListener(t *testing.T, s *testsshd.Server, port int, remote string) (*Listener, *sshmux.Master) {
+	t.Helper()
+	m := sshmux.New(sshmux.Options{SSHBinary: "/usr/bin/ssh", SSHConfigFile: s.ClientConfig,
+		SocketDir: testsshd.ShortTempDir(t), Target: "testhost", ConnectTimeout: 5 * time.Second})
+	t.Cleanup(m.Close)
+	l := NewListener(config.Tunnel{LocalPort: port, SSH: "testhost", Remote: remote}, m, nil)
+	l.Start()
+	t.Cleanup(l.Stop)
+	return l, m
+}
+
+func TestTakeoverSameForward(t *testing.T) {
+	s := testsshd.Start(t)
+	echo := testsshd.EchoServer(t)
+	port := testsshd.FreePort(t)
+	old := occupyWithSSH(t, s, port, echo)
+	exited := make(chan struct{})
+	go func() { old.Wait(); close(exited) }()
+
+	l, m := newListener(t, s, port, echo)
+	waitListen(t, l, "ok")
+	select {
+	case <-exited:
+	case <-time.After(3 * time.Second):
+		t.Fatal("old ssh -L still running")
+	}
+	echoRoundTrip(t, v4(port), []byte("ours"))
+	if m.Spawns() != 1 {
+		t.Fatalf("connection not served by the daemon: spawns = %d", m.Spawns())
+	}
+}
+
+func TestNoTakeoverDifferentForward(t *testing.T) {
+	s := testsshd.Start(t)
+	echo, other := testsshd.EchoServer(t), testsshd.EchoServer(t)
+	port := testsshd.FreePort(t)
+	old := occupyWithSSH(t, s, port, other)
+
+	l, _ := newListener(t, s, port, echo)
+	waitListen(t, l, "bind failed:")
+	time.Sleep(1500 * time.Millisecond)
+	if err := old.Process.Signal(syscall.Signal(0)); err != nil {
+		t.Fatalf("different-forward ssh was killed: %v", err)
+	}
+	want := fmt.Sprintf("held by ssh pid %d", old.Process.Pid)
+	if got := l.Status().Listen; !strings.Contains(got, want) {
+		t.Fatalf("Listen = %q, want it to mention %q", got, want)
+	}
+}
+
+func TestNoTakeoverNonSSH(t *testing.T) {
+	s := testsshd.Start(t)
+	occupier, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer occupier.Close()
+	port := occupier.Addr().(*net.TCPAddr).Port
+	l, _ := newListener(t, s, port, testsshd.EchoServer(t))
+	waitListen(t, l, "bind failed:")
+	if got, want := l.Status().Listen, fmt.Sprintf("pid %d", os.Getpid()); !strings.Contains(got, want) {
+		t.Fatalf("Listen = %q, want it to mention %q", got, want)
 	}
 }

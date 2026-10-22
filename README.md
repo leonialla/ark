@@ -83,5 +83,6 @@ prod-redis  6379  prod-redis            10.0.1.5:6379   ok      error  0      30
 
 - **连不上，日志里有 `Host key verification failed`**：服务以非交互模式运行 ssh（`BatchMode=yes`），不会弹出确认新主机的提示。先在终端里手动 `ssh <目标>` 一次，把主机指纹加入 `known_hosts`。
 - **私钥有密码**：先用 `ssh-add --apple-use-keychain` 把私钥加到 agent 或钥匙串里。服务不会询问密码。
-- **`LISTEN` 显示 `bind failed: address already in use`**：端口被别的程序占用了，比如以前手动开的 `ssh -L`。用 `lsof -i :<端口>` 找到并关闭它，服务每 5 秒会重试一次，端口释放后自动接管。
+- **端口被以前手动开的 `ssh -L` 占着**：如果这个 `ssh` 进程是你自己的，并且转发规则和配置完全一致（本地端口相同、绑定在回环地址上、远程地址相同、SSH 目标的 user/host/port 相同，也没有用 `-J`、`-o HostName=` 这类改变目标的选项），服务会结束它（先 SIGTERM，3 秒内没退出再 SIGKILL），然后接管端口，并在日志里记一条 warn。比较是逐字的，`localhost` 和 `127.0.0.1` 算作不同。
+- **`LISTEN` 显示 `bind failed: ... (held by node pid 812)`**：端口被其他程序占用，服务不会动它，只显示占用者是谁。转发规则不同的 `ssh` 会显示为 `ssh pid 123 (different forward)`。你自己关掉占用的程序后，服务每 5 秒会重试一次，端口释放后自动接管。
 - **前台调试**：先 `launchctl bootout gui/$(id -u)/local.ssh-tunnel-daemon` 停掉后台服务，再运行 `ssh-tunnel-daemon run --log - --debug`，日志会直接打印到终端。

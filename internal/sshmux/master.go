@@ -382,6 +382,9 @@ func (m *Master) Status() Status {
 	return Status{Target: m.o.Target, State: m.state, Since: m.since, LastError: m.lastErr}
 }
 
+// SSHConfigFile is the -F file passed to ssh, or "".
+func (m *Master) SSHConfigFile() string { return m.o.SSHConfigFile }
+
 // PID of the running master process, or 0.
 func (m *Master) PID() int {
 	m.mu.Lock()
