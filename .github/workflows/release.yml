@@ -45,6 +45,7 @@ jobs:
           go build -trimpath -ldflags "-s -w" -o "$dist/$dir/arkd" ./cmd/arkd
           go build -trimpath -ldflags "-s -w" -o "$dist/$dir/ark" ./cmd/ark
           cp LICENSE README.md README.zh-CN.md config.example.yaml "$dist/$dir/"
+          cp -R skills "$dist/$dir/"
           file "$dist/$dir/arkd" "$dist/$dir/ark"
           for b in arkd ark; do
             if go version -m "$dist/$dir/$b" | grep -q 'vcs.modified=true'; then

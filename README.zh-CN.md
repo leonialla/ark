@@ -125,6 +125,17 @@ prod-redis  6379  prod-redis            10.0.1.5:6379   ok      error  0      30
 - **`LISTEN` 显示 `bind failed: ... (held by node pid 812)`**：端口被其他程序占用，服务不会动它，只显示占用者是谁。转发规则不同的 `ssh` 会显示为 `ssh pid 123 (different forward)`。你自己关掉占用的程序后，服务每 5 秒会重试一次，端口释放后自动接管。
 - **前台调试**：先 `launchctl bootout gui/$(id -u)/local.ark` 停掉后台服务，再运行 `arkd --log - --debug`，日志会直接打印到终端。
 
+## AI agent 技能
+
+[`skills/ark/SKILL.md`](skills/ark/SKILL.md) 用来指导 coding agent（Claude Code、Codex、Gemini CLI 以及其他支持 [Agent Skills](https://agentskills.io) 的工具）配置和检查 ark 隧道：选择空闲的本地端口、SSH 目标和远程地址，重新加载配置，看懂 `ark status`，以及排查常见问题。为 Claude Code 安装：
+
+```bash
+mkdir -p ~/.claude/skills/ark
+curl -fsSL https://raw.githubusercontent.com/leonialla/ark/main/skills/ark/SKILL.md -o ~/.claude/skills/ark/SKILL.md
+```
+
+其他 agent 请放到 `~/.agents/skills/ark/`。装好后，可以直接对 agent 说“用 ark 把 bastion-staging 后面的 staging Redis 映射到本地端口”。
+
 ## 与同类工具对比
 
 以下为 2026 年 10 月的情况：

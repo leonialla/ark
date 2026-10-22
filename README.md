@@ -125,6 +125,17 @@ Logs are written to `~/Library/Logs/ark/arkd.log` and rotated automatically (10M
 - **`LISTEN` shows `bind failed: ... (held by node pid 812)`**: another program holds the port. `arkd` leaves it alone and only reports who holds it; an `ssh` with a different forward shows up as `ssh pid 123 (different forward)`. Once you close that program, `arkd` retries every 5 seconds and takes over the port when it is free.
 - **Debugging in the foreground**: stop the background service with `launchctl bootout gui/$(id -u)/local.ark`, then run `arkd --log - --debug` to print the log to your terminal.
 
+## AI agent skill
+
+[`skills/ark/SKILL.md`](skills/ark/SKILL.md) teaches coding agents (Claude Code, Codex, Gemini CLI and others that support [Agent Skills](https://agentskills.io)) how to add and check ark tunnels: picking a free local port, the SSH target and the remote address, reloading, reading `ark status`, and the common failures. Install it for Claude Code with:
+
+```bash
+mkdir -p ~/.claude/skills/ark
+curl -fsSL https://raw.githubusercontent.com/leonialla/ark/main/skills/ark/SKILL.md -o ~/.claude/skills/ark/SKILL.md
+```
+
+For other agents, put it in `~/.agents/skills/ark/` instead. Then ask your agent something like "map the staging Redis behind bastion-staging to a local port with ark".
+
 ## Compared with similar tools
 
 As of October 2026:
