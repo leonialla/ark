@@ -36,20 +36,30 @@ jobs:
           GOARCH: arm64
           CGO_ENABLED: "0"
         run: |
+          # Build outside the checkout: files written inside it would make Go
+          # stamp the binaries as modified ("+dirty").
+          dist="$RUNNER_TEMP/dist"
           # Unversioned name so releases/latest/download/ark_darwin_arm64.tar.gz always works.
           dir="ark_darwin_arm64"
-          mkdir -p "dist/$dir"
-          go build -trimpath -ldflags "-s -w" -o "dist/$dir/arkd" ./cmd/arkd
-          go build -trimpath -ldflags "-s -w" -o "dist/$dir/ark" ./cmd/ark
-          cp LICENSE README.md README.zh-CN.md config.example.yaml "dist/$dir/"
-          file "dist/$dir/arkd" "dist/$dir/ark"
-          tar -C dist -czf "dist/$dir.tar.gz" "$dir"
-          (cd dist && shasum -a 256 "$dir.tar.gz" > checksums.txt)
-          cat dist/checksums.txt
+          mkdir -p "$dist/$dir"
+          go build -trimpath -ldflags "-s -w" -o "$dist/$dir/arkd" ./cmd/arkd
+          go build -trimpath -ldflags "-s -w" -o "$dist/$dir/ark" ./cmd/ark
+          cp LICENSE README.md README.zh-CN.md config.example.yaml "$dist/$dir/"
+          file "$dist/$dir/arkd" "$dist/$dir/ark"
+          for b in arkd ark; do
+            if go version -m "$dist/$dir/$b" | grep -q 'vcs.modified=true'; then
+              echo "::error::$b was built from a modified tree"; exit 1
+            fi
+          done
+          "$dist/$dir/arkd" --version
+          tar -C "$dist" -czf "$dist/$dir.tar.gz" "$dir"
+          (cd "$dist" && shasum -a 256 "$dir.tar.gz" > checksums.txt)
+          cat "$dist/checksums.txt"
+          echo "DIST=$dist" >> "$GITHUB_ENV"
 
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --verify-tag --generate-notes --title "$TAG"
-          gh release upload "$TAG" dist/*.tar.gz dist/checksums.txt --clobber
+          gh release upload "$TAG" "$DIST"/*.tar.gz "$DIST/checksums.txt" --clobber
