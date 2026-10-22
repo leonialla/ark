@@ -21,9 +21,20 @@ It calls the system `/usr/bin/ssh` directly, so Host aliases, `ProxyJump`, `Iden
 
 ## Installation
 
-Requires macOS and Go 1.26+.
+Requires macOS on Apple silicon (arm64). Intel Macs are not supported.
 
-With `go install`:
+Download a prebuilt binary:
+
+```bash
+curl -fsSL https://github.com/leonialla/ark/releases/latest/download/ark_darwin_arm64.tar.gz | tar -xz
+mkdir -p ~/.local/bin
+install -m 0755 ark_darwin_arm64/ark ark_darwin_arm64/arkd ~/.local/bin/
+~/.local/bin/ark install
+```
+
+If you download the archive in a browser instead, macOS quarantines it; clear that with `xattr -d com.apple.quarantine ~/.local/bin/ark ~/.local/bin/arkd`. Checksums are in `checksums.txt` on each release.
+
+With `go install` (Go 1.26+):
 
 ```bash
 go install github.com/leonialla/ark/cmd/arkd@latest github.com/leonialla/ark/cmd/ark@latest
@@ -32,7 +43,7 @@ ark install
 
 Both binaries land in `$(go env GOPATH)/bin` (make sure it is on your `PATH`). `ark install` looks for `arkd` in the same directory as itself.
 
-Or from a clone:
+Or from a clone (Go 1.26+):
 
 ```bash
 git clone https://github.com/leonialla/ark.git

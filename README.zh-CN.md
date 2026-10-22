@@ -21,9 +21,20 @@
 
 ## 安装
 
-需要 macOS 和 Go 1.26+。
+需要 Apple silicon（arm64）的 macOS，不支持 Intel 芯片的 Mac。
 
-用 `go install` 安装：
+下载预编译的二进制：
+
+```bash
+curl -fsSL https://github.com/leonialla/ark/releases/latest/download/ark_darwin_arm64.tar.gz | tar -xz
+mkdir -p ~/.local/bin
+install -m 0755 ark_darwin_arm64/ark ark_darwin_arm64/arkd ~/.local/bin/
+~/.local/bin/ark install
+```
+
+如果是用浏览器下载的压缩包，macOS 会给它加上隔离标记，可以用 `xattr -d com.apple.quarantine ~/.local/bin/ark ~/.local/bin/arkd` 去掉。每个 Release 里都附有 `checksums.txt` 校验和。
+
+用 `go install` 安装（需要 Go 1.26+）：
 
 ```bash
 go install github.com/leonialla/ark/cmd/arkd@latest github.com/leonialla/ark/cmd/ark@latest
@@ -32,7 +43,7 @@ ark install
 
 两个程序会装到 `$(go env GOPATH)/bin`（确认它在你的 `PATH` 里）。`ark install` 会在自己所在的目录里找 `arkd`。
 
-或者从源码安装：
+或者从源码安装（需要 Go 1.26+）：
 
 ```bash
 git clone https://github.com/leonialla/ark.git
