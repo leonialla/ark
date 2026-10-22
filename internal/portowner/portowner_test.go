@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"ark/internal/config"
+	"github.com/leonialla/ark/internal/config"
 )
 
 func TestParseLsof(t *testing.T) {

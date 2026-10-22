@@ -11,11 +11,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"ark"
-	"ark/internal/config"
-	"ark/internal/control"
-	"ark/internal/launchd"
-	"ark/internal/logging"
+	"github.com/leonialla/ark"
+	"github.com/leonialla/ark/internal/config"
+	"github.com/leonialla/ark/internal/control"
+	"github.com/leonialla/ark/internal/launchd"
+	"github.com/leonialla/ark/internal/logging"
 )
 
 const usage = `Usage: ark <command> [flags]

@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"ark/internal/daemon"
+	"github.com/leonialla/ark/internal/daemon"
 )
 
 // ErrNotRunning means nothing is listening on the control socket.

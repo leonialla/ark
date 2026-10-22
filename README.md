@@ -21,13 +21,28 @@ It calls the system `/usr/bin/ssh` directly, so Host aliases, `ProxyJump`, `Iden
 
 ## Installation
 
-Requires Go 1.26+.
+Requires macOS and Go 1.26+.
+
+With `go install`:
 
 ```bash
+go install github.com/leonialla/ark/cmd/arkd@latest github.com/leonialla/ark/cmd/ark@latest
+ark install
+```
+
+Both binaries land in `$(go env GOPATH)/bin` (make sure it is on your `PATH`). `ark install` looks for `arkd` in the same directory as itself.
+
+Or from a clone:
+
+```bash
+git clone https://github.com/leonialla/ark.git
+cd ark
 make install
 ```
 
-This installs `arkd` and `ark` into `~/.local/bin/` (`ark install` looks for `arkd` in the same directory), then runs `ark install`:
+This installs `arkd` and `ark` into `~/.local/bin/`, then runs `ark install`.
+
+`ark install` does the following:
 
 - If `~/.config/ark/config.yaml` does not exist, it only writes an example config there. Edit it, then run `ark install` again.
 - If the config exists, it installs the launchd user agent `~/Library/LaunchAgents/local.ark.plist`. From then on `arkd` starts at login and is restarted whenever it exits.
@@ -93,3 +108,7 @@ Logs are written to `~/Library/Logs/ark/arkd.log` and rotated automatically (10M
 - **The port is held by an `ssh -L` you started by hand earlier**: if that `ssh` process is yours and its forward matches the config exactly (same local port bound to a loopback address, same remote address, same SSH target user/host/port, and no target-changing options such as `-J` or `-o HostName=`), `arkd` stops it (SIGTERM, then SIGKILL if it hasn't exited within 3 seconds), takes over the port, and logs a warning. The comparison is literal: `localhost` and `127.0.0.1` count as different.
 - **`LISTEN` shows `bind failed: ... (held by node pid 812)`**: another program holds the port. `arkd` leaves it alone and only reports who holds it; an `ssh` with a different forward shows up as `ssh pid 123 (different forward)`. Once you close that program, `arkd` retries every 5 seconds and takes over the port when it is free.
 - **Debugging in the foreground**: stop the background service with `launchctl bootout gui/$(id -u)/local.ark`, then run `arkd --log - --debug` to print the log to your terminal.
+
+## License
+
+[MIT](LICENSE)

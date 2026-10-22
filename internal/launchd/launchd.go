@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"ark/internal/config"
+	"github.com/leonialla/ark/internal/config"
 )
 
 const Label = "local.ark"

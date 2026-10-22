@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"ark/internal/testsshd"
+	"github.com/leonialla/ark/internal/testsshd"
 )
 
 func newMaster(t *testing.T, s *testsshd.Server, target string) *Master {

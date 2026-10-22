@@ -21,13 +21,28 @@
 
 ## 安装
 
-需要 Go 1.26+。
+需要 macOS 和 Go 1.26+。
+
+用 `go install` 安装：
 
 ```bash
+go install github.com/leonialla/ark/cmd/arkd@latest github.com/leonialla/ark/cmd/ark@latest
+ark install
+```
+
+两个程序会装到 `$(go env GOPATH)/bin`（确认它在你的 `PATH` 里）。`ark install` 会在自己所在的目录里找 `arkd`。
+
+或者从源码安装：
+
+```bash
+git clone https://github.com/leonialla/ark.git
+cd ark
 make install
 ```
 
-这一步会把 `arkd` 和 `ark` 装到 `~/.local/bin/`（`ark install` 会在同一目录里找 `arkd`），然后执行 `ark install`：
+这一步会把 `arkd` 和 `ark` 装到 `~/.local/bin/`，然后执行 `ark install`。
+
+`ark install` 会做这些事：
 
 - 如果 `~/.config/ark/config.yaml` 不存在，只会写入一份示例配置。改好后再执行一次 `ark install`。
 - 如果配置已存在，会安装 launchd 用户代理 `~/Library/LaunchAgents/local.ark.plist`。之后登录时自动启动，进程退出后自动拉起。
@@ -93,3 +108,7 @@ prod-redis  6379  prod-redis            10.0.1.5:6379   ok      error  0      30
 - **端口被以前手动开的 `ssh -L` 占着**：如果这个 `ssh` 进程是你自己的，并且转发规则和配置完全一致（本地端口相同、绑定在回环地址上、远程地址相同、SSH 目标的 user/host/port 相同，也没有用 `-J`、`-o HostName=` 这类改变目标的选项），服务会结束它（先 SIGTERM，3 秒内没退出再 SIGKILL），然后接管端口，并在日志里记一条 warn。比较是逐字的，`localhost` 和 `127.0.0.1` 算作不同。
 - **`LISTEN` 显示 `bind failed: ... (held by node pid 812)`**：端口被其他程序占用，服务不会动它，只显示占用者是谁。转发规则不同的 `ssh` 会显示为 `ssh pid 123 (different forward)`。你自己关掉占用的程序后，服务每 5 秒会重试一次，端口释放后自动接管。
 - **前台调试**：先 `launchctl bootout gui/$(id -u)/local.ark` 停掉后台服务，再运行 `arkd --log - --debug`，日志会直接打印到终端。
+
+## 许可证
+
+[MIT](LICENSE)

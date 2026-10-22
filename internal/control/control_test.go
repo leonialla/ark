@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"ark/internal/daemon"
-	"ark/internal/testsshd"
+	"github.com/leonialla/ark/internal/daemon"
+	"github.com/leonialla/ark/internal/testsshd"
 )
 
 type fake struct {

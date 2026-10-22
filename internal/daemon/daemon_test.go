@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"ark/internal/netwatch"
-	"ark/internal/testsshd"
+	"github.com/leonialla/ark/internal/netwatch"
+	"github.com/leonialla/ark/internal/testsshd"
 )
 
 type env struct {

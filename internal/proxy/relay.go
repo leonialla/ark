@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"ark/internal/sshmux"
+	"github.com/leonialla/ark/internal/sshmux"
 )
 
 const (

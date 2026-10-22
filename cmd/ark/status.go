@@ -7,7 +7,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"ark/internal/daemon"
+	"github.com/leonialla/ark/internal/daemon"
 )
 
 const maxErrLen = 60

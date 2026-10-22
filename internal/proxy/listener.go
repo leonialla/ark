@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"ark/internal/config"
-	"ark/internal/portowner"
-	"ark/internal/sshmux"
+	"github.com/leonialla/ark/internal/config"
+	"github.com/leonialla/ark/internal/portowner"
+	"github.com/leonialla/ark/internal/sshmux"
 )
 
 // bindRetry is how often a failed bind is retried.

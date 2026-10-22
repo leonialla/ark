@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"ark/internal/config"
-	"ark/internal/sshmux"
-	"ark/internal/testsshd"
+	"github.com/leonialla/ark/internal/config"
+	"github.com/leonialla/ark/internal/sshmux"
+	"github.com/leonialla/ark/internal/testsshd"
 )
 
 type fixture struct {

@@ -1,4 +1,4 @@
-module ark
+module github.com/leonialla/ark
 
 go 1.26.3
 

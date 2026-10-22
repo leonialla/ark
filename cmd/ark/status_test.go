@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"ark/internal/daemon"
+	"github.com/leonialla/ark/internal/daemon"
 )
 
 func TestRenderTable(t *testing.T) {

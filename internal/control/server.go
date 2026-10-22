@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"ark/internal/config"
-	"ark/internal/daemon"
+	"github.com/leonialla/ark/internal/config"
+	"github.com/leonialla/ark/internal/daemon"
 )
 
 type Backend interface {

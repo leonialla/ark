@@ -16,7 +16,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"ark/internal/config"
+	"github.com/leonialla/ark/internal/config"
 )
 
 type Owner struct {

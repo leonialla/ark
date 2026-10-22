@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"ark/internal/config"
-	"ark/internal/netwatch"
-	"ark/internal/proxy"
-	"ark/internal/sshmux"
+	"github.com/leonialla/ark/internal/config"
+	"github.com/leonialla/ark/internal/netwatch"
+	"github.com/leonialla/ark/internal/proxy"
+	"github.com/leonialla/ark/internal/sshmux"
 )
 
 type TunnelStatus struct {

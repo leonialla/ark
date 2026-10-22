@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"ark/internal/config"
-	"ark/internal/control"
-	"ark/internal/daemon"
-	"ark/internal/logging"
-	"ark/internal/netwatch"
+	"github.com/leonialla/ark/internal/config"
+	"github.com/leonialla/ark/internal/control"
+	"github.com/leonialla/ark/internal/daemon"
+	"github.com/leonialla/ark/internal/logging"
+	"github.com/leonialla/ark/internal/netwatch"
 )
 
 func main() {
