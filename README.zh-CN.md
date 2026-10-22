@@ -113,6 +113,8 @@ prod-redis  6379  prod-redis            10.0.1.5:6379   ok      error  0      30
 - `STATE` 是到这台服务器的 SSH 连接状态，取值为 `idle`（还没连、睡眠唤醒或换网络后已断开，或被 `idle_timeout` 回收）、`connecting`、`up`、`error`。
 - 加 `--json` 可以输出 JSON 格式。
 
+`ark version` 会显示 `ark` 和正在运行的 `arkd` 的版本。两者不一致时（比如升级后还没重启），会提示你执行 `ark install`。`arkd --version` 显示守护进程自己的版本。
+
 日志位于 `~/Library/Logs/ark/arkd.log`，自动轮转（10MB × 3 份）。
 
 ## 排查

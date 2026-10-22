@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/leonialla/ark/internal/config"
 	"github.com/leonialla/ark/internal/daemon"
+	"github.com/leonialla/ark/internal/version"
 )
 
 type Backend interface {
@@ -25,7 +27,7 @@ func DefaultSocketPath() string {
 	return config.ExpandHome("~/.config/ark/arkd.sock")
 }
 
-// Serve answers GET /status and POST /reload on sockPath until ctx ends.
+// Serve answers GET /status, GET /version and POST /reload on sockPath until ctx ends.
 func Serve(ctx context.Context, sockPath string, b Backend) error {
 	if err := os.MkdirAll(filepath.Dir(sockPath), 0o700); err != nil {
 		return err
@@ -47,6 +49,9 @@ func Serve(ctx context.Context, sockPath string, b Backend) error {
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(b.Status())
+	})
+	mux.HandleFunc("GET /version", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, version.String())
 	})
 	mux.HandleFunc("POST /reload", func(w http.ResponseWriter, r *http.Request) {
 		if err := b.Reload(); err != nil {

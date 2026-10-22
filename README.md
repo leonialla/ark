@@ -113,6 +113,8 @@ prod-redis  6379  prod-redis            10.0.1.5:6379   ok      error  0      30
 - `STATE` is the state of the SSH connection to that server: `idle` (not connected yet, dropped after sleep or a network change, or closed by `idle_timeout`), `connecting`, `up` or `error`.
 - Add `--json` for JSON output.
 
+`ark version` shows the version of `ark` and of the running `arkd`, and tells you to run `ark install` if they differ (for example after an upgrade). `arkd --version` prints the daemon's own version.
+
 Logs are written to `~/Library/Logs/ark/arkd.log` and rotated automatically (10MB × 3 files).
 
 ## Troubleshooting

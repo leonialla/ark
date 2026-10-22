@@ -18,6 +18,9 @@ import (
 // ErrNotRunning means nothing is listening on the control socket.
 var ErrNotRunning = errors.New("daemon is not running")
 
+// ErrNoVersion means the daemon predates the version endpoint.
+var ErrNoVersion = errors.New("daemon does not report its version")
+
 func client(sockPath string) *http.Client {
 	return &http.Client{
 		Timeout: 10 * time.Second,
@@ -59,6 +62,26 @@ func FetchStatus(sockPath string) ([]daemon.TunnelStatus, error) {
 		return nil, err
 	}
 	return rows, nil
+}
+
+// FetchVersion returns the version of the running daemon.
+func FetchVersion(sockPath string) (string, error) {
+	resp, err := do(sockPath, http.MethodGet, "/version")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return "", ErrNoVersion
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("version: HTTP %d", resp.StatusCode)
+	}
+	return strings.TrimSpace(string(body)), nil
 }
 
 func Reload(sockPath string) error {

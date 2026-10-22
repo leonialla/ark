@@ -25,6 +25,7 @@ Commands:
   reload     make arkd re-read the config file
   install    install and start arkd as a launchd agent
   uninstall  stop and remove the launchd agent
+  version    show the versions of ark and the running arkd
 
 Config: %s
 `
@@ -44,6 +45,8 @@ func main() {
 		err = installCmd(args)
 	case "uninstall":
 		err = uninstallCmd(args)
+	case "version", "-v", "--version":
+		err = versionCmd(args)
 	case "-h", "--help", "help":
 		fmt.Printf(usage, config.DefaultPath())
 	default:

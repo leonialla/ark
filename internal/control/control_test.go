@@ -3,6 +3,8 @@ package control
 import (
 	"context"
 	"errors"
+	"net"
+	"net/http"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/leonialla/ark/internal/daemon"
 	"github.com/leonialla/ark/internal/testsshd"
+	"github.com/leonialla/ark/internal/version"
 )
 
 type fake struct {
@@ -91,4 +94,34 @@ func TestStaleSocketReplaced(t *testing.T) {
 	<-done
 	writeStale(t, sock)
 	serve(t, sock, &fake{rows: []daemon.TunnelStatus{{Name: "x"}}})
+}
+
+func TestServeVersion(t *testing.T) {
+	sock := filepath.Join(testsshd.ShortTempDir(t), "d.sock")
+	serve(t, sock, &fake{})
+	got, err := FetchVersion(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := version.String(); got != want {
+		t.Fatalf("FetchVersion = %q, want %q", got, want)
+	}
+	if _, err := FetchVersion(filepath.Join(testsshd.ShortTempDir(t), "none.sock")); !errors.Is(err, ErrNotRunning) {
+		t.Fatalf("not running: err = %v", err)
+	}
+}
+
+func TestFetchVersionFromOldDaemon(t *testing.T) {
+	// A daemon built before /version existed answers 404.
+	sock := filepath.Join(testsshd.ShortTempDir(t), "old.sock")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: http.NotFoundHandler()}
+	go srv.Serve(l)
+	t.Cleanup(func() { srv.Close() })
+	if _, err := FetchVersion(sock); !errors.Is(err, ErrNoVersion) {
+		t.Fatalf("err = %v, want ErrNoVersion", err)
+	}
 }

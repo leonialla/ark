@@ -17,6 +17,7 @@ import (
 	"github.com/leonialla/ark/internal/daemon"
 	"github.com/leonialla/ark/internal/logging"
 	"github.com/leonialla/ark/internal/netwatch"
+	"github.com/leonialla/ark/internal/version"
 )
 
 func main() {
@@ -31,7 +32,13 @@ func run() error {
 	logPath := flag.String("log", logging.DefaultPath(), `log file ("-" for stderr)`)
 	debug := flag.Bool("debug", false, "log every connection")
 	sock := flag.String("socket", control.DefaultSocketPath(), "control socket")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("arkd", version.String())
+		return nil
+	}
 
 	if *logPath == "-" {
 		*logPath = ""
@@ -41,6 +48,7 @@ func run() error {
 		return err
 	}
 	defer closer.Close()
+	log.Info("arkd starting", "version", version.String())
 
 	d, err := daemon.New(*cfgPath, log)
 	if err != nil {
