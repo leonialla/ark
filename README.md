@@ -125,6 +125,21 @@ Logs are written to `~/Library/Logs/ark/arkd.log` and rotated automatically (10M
 - **`LISTEN` shows `bind failed: ... (held by node pid 812)`**: another program holds the port. `arkd` leaves it alone and only reports who holds it; an `ssh` with a different forward shows up as `ssh pid 123 (different forward)`. Once you close that program, `arkd` retries every 5 seconds and takes over the port when it is free.
 - **Debugging in the foreground**: stop the background service with `launchctl bootout gui/$(id -u)/local.ark`, then run `arkd --log - --debug` to print the log to your terminal.
 
+## Compared with similar tools
+
+As of October 2026:
+
+| Tool | Approach | How ark differs |
+|---|---|---|
+| [autossh](https://www.harding.motd.ca/autossh/) | Restarts an `ssh -L` process whenever it dies. Last release 1.4g (2019). | ark connects only when a client connects and closes idle connections. It drops stale connections right after a wake or network change instead of waiting for keepalives to time out, and one SSH connection per server serves every port. |
+| [mole](https://github.com/davrodpin/mole) | Cross-platform CLI that keeps tunnels up and reconnects. Last release v2.0.0 (2021). | Same always-on model as autossh, with no sleep or network-change handling. |
+| [Core Tunnel](https://apps.apple.com/app/id1354318707) | Polished macOS menu bar app; reads `ssh_config`, restores tunnels after sleep and network interruptions. Freemium, paid yearly license. | Closed source and GUI-driven. ark is free, scriptable, configured in one YAML file, and on demand rather than always on. |
+| [Secure Pipes](https://formulae.brew.sh/cask/secure-pipes) | Free macOS menu bar app for local/remote forwards and SOCKS proxies. | Its Homebrew build is Intel-only and needs Rosetta 2 on Apple silicon. |
+| [sshuttle](https://github.com/sshuttle/sshuttle) | "Poor man's VPN" over SSH: forwards whole subnets. Actively maintained. | Different job: sshuttle needs sudo and changes routing, which can clash with a corporate VPN. ark only exposes the ports you list. |
+| Database clients (TablePlus, DataGrip, DBeaver, …) | Built-in SSH tunnel per connection. | Works only inside that client; ark's ports are usable by any program, CLI or script. |
+
+Pick something else if you need Linux or Intel Mac support, a GUI, or access to whole networks rather than a few ports.
+
 ## License
 
 [MIT](LICENSE)

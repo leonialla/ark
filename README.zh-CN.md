@@ -125,6 +125,21 @@ prod-redis  6379  prod-redis            10.0.1.5:6379   ok      error  0      30
 - **`LISTEN` 显示 `bind failed: ... (held by node pid 812)`**：端口被其他程序占用，服务不会动它，只显示占用者是谁。转发规则不同的 `ssh` 会显示为 `ssh pid 123 (different forward)`。你自己关掉占用的程序后，服务每 5 秒会重试一次，端口释放后自动接管。
 - **前台调试**：先 `launchctl bootout gui/$(id -u)/local.ark` 停掉后台服务，再运行 `arkd --log - --debug`，日志会直接打印到终端。
 
+## 与同类工具对比
+
+以下为 2026 年 10 月的情况：
+
+| 工具 | 做法 | 和 ark 的区别 |
+|---|---|---|
+| [autossh](https://www.harding.motd.ca/autossh/) | `ssh -L` 进程退出后自动重启它。最新版本 1.4g（2019 年）。 | ark 有客户端连进来时才建立连接，空闲时自动回收；睡眠唤醒或换网络后立刻丢弃失效连接，不用等心跳超时；同一台服务器的所有端口共用一条 SSH 连接。 |
+| [mole](https://github.com/davrodpin/mole) | 跨平台命令行工具，保持隧道在线并自动重连。最新版本 v2.0.0（2021 年）。 | 和 autossh 一样是常驻连接，不处理睡眠和网络切换。 |
+| [Core Tunnel](https://apps.apple.com/app/id1354318707) | 做工精致的 macOS 菜单栏应用，能读取 `ssh_config`，睡眠唤醒和网络中断后自动恢复隧道。免费下载，高级版按年付费。 | 闭源、通过图形界面操作。ark 免费、可以写进脚本，用一个 YAML 文件配置，按需连接而不是一直在线。 |
+| [Secure Pipes](https://formulae.brew.sh/cask/secure-pipes) | 免费的 macOS 菜单栏应用，支持本地/远程转发和 SOCKS 代理。 | Homebrew 上的版本只为 Intel 编译，在 Apple silicon 上需要 Rosetta 2。 |
+| [sshuttle](https://github.com/sshuttle/sshuttle) | 基于 SSH 的“简易 VPN”，转发整个网段。仍在积极维护。 | 解决的是另一类问题：需要 sudo、会修改路由，可能和公司 VPN 冲突。ark 只开放你列出的端口。 |
+| 数据库客户端（TablePlus、DataGrip、DBeaver 等） | 每个连接内置 SSH 隧道。 | 只能在该客户端里用；ark 的端口任何程序、命令行和脚本都能用。 |
+
+如果你需要支持 Linux 或 Intel 芯片的 Mac、想要图形界面，或者要访问整个网段而不只是几个端口，其他工具会更合适。
+
 ## 许可证
 
 [MIT](LICENSE)
