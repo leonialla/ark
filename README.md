@@ -15,6 +15,7 @@ Production databases, Redis and similar services usually don't expose their port
 
 - When a connection comes in and the SSH connection to that server is missing or dead, it establishes one, then relays the traffic through it.
 - It keeps one SSH connection per server (an OpenSSH ControlMaster), and many client connections share it.
+- When no data has moved through a server's tunnels for 30 minutes, it closes that SSH connection to free it up, and reconnects on the next connection (`idle_timeout`).
 - When it detects a wake from sleep or a change of the primary network interface (for example, a different Wi-Fi network), it drops the stale SSH connections and rebuilds them on the next connection. VPNs coming up or going down and changes to virtual interfaces are ignored.
 
 It calls the system `/usr/bin/ssh` directly, so Host aliases, `ProxyJump`, `IdentityFile` and ssh-agent from `~/.ssh/config` all work exactly as they do in your terminal. TCP only.
@@ -83,7 +84,9 @@ tunnels:
     remote: 10.0.1.5:6379
 ```
 
-Optional global settings include `ssh_binary` (default `/usr/bin/ssh`), `connect_timeout` (default `10s`) and `ssh_config_file` (equivalent to `ssh -F`). See [config.example.yaml](config.example.yaml).
+Optional global settings include `ssh_binary` (default `/usr/bin/ssh`), `connect_timeout` (default `10s`), `idle_timeout` (default `30m`) and `ssh_config_file` (equivalent to `ssh -F`).
+
+`idle_timeout` is measured on data, in either direction, across all tunnels that use the same server. When it expires the SSH connection is closed, including client connections that are still open but have been silent the whole time (for example idle connections in a database pool); common database and Redis clients reconnect on their own. Set `idle_timeout: 0` to keep SSH connections open indefinitely. See [config.example.yaml](config.example.yaml).
 
 After editing the config, apply it with:
 
@@ -107,7 +110,7 @@ prod-mysql  4333  ubuntu@203.0.113.180  localhost:4333  ok      up     2      5m
 prod-redis  6379  prod-redis            10.0.1.5:6379   ok      error  0      30s ago  ssh: connect to host … Operation timed out
 ```
 
-- `STATE` is the state of the SSH connection to that server: `idle` (not connected yet, or deliberately dropped), `connecting`, `up` or `error`.
+- `STATE` is the state of the SSH connection to that server: `idle` (not connected yet, dropped after sleep or a network change, or closed by `idle_timeout`), `connecting`, `up` or `error`.
 - Add `--json` for JSON output.
 
 Logs are written to `~/Library/Logs/ark/arkd.log` and rotated automatically (10MB × 3 files).

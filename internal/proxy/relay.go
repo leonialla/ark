@@ -25,6 +25,7 @@ var ensureTimeout = 2 * time.Minute
 // to a fresh channel once if the first one died on a dead master.
 type relay struct {
 	client net.Conn
+	m      *sshmux.Master
 
 	mu        sync.Mutex
 	ch        *sshmux.Channel
@@ -54,7 +55,7 @@ func (l *Listener) handle(c net.Conn) {
 		return
 	}
 	l.log.Debug("connection open", "client", c.RemoteAddr())
-	r := &relay{client: c, ch: ch}
+	r := &relay{client: c, m: l.m, ch: ch}
 	go r.pumpClient()
 
 	for attempt := 0; ; attempt++ {
@@ -115,6 +116,7 @@ func (r *relay) pumpRemote(ch *sshmux.Channel) (int64, bool) {
 	for {
 		n, err := ch.Read(buf)
 		if n > 0 {
+			r.m.Touch()
 			if total == 0 {
 				r.mu.Lock()
 				r.gotRemote = true
@@ -143,6 +145,7 @@ func (r *relay) pumpClient() {
 	for {
 		n, err := r.client.Read(buf)
 		if n > 0 {
+			r.m.Touch()
 			r.mu.Lock()
 			if !r.gotRemote && !r.overflow {
 				if len(r.replay)+n > replayMax {

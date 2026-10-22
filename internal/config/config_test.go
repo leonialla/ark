@@ -155,3 +155,28 @@ func TestExampleConfigParses(t *testing.T) {
 		t.Errorf("tunnels = %d", len(cfg.Tunnels))
 	}
 }
+
+func TestIdleTimeout(t *testing.T) {
+	tunnel := "tunnels:\n  - {local_port: 1, ssh: a, remote: \"h:1\"}\n"
+	cases := map[string]time.Duration{
+		"":                      30 * time.Minute,
+		"idle_timeout: 10m\n":   10 * time.Minute,
+		"idle_timeout: 0\n":     0,
+		"idle_timeout: \"0\"\n": 0,
+		"idle_timeout: 0s\n":    0,
+	}
+	for prefix, want := range cases {
+		cfg, err := Parse([]byte(prefix + tunnel))
+		if err != nil {
+			t.Fatalf("%q: %v", prefix, err)
+		}
+		if cfg.IdleTimeout != want {
+			t.Errorf("%q: IdleTimeout = %v, want %v", prefix, cfg.IdleTimeout, want)
+		}
+	}
+	for _, bad := range []string{"idle_timeout: -5m\n", "idle_timeout: soon\n"} {
+		if _, err := Parse([]byte(bad + tunnel)); err == nil || !strings.Contains(err.Error(), "idle_timeout") {
+			t.Errorf("%q: err = %v", bad, err)
+		}
+	}
+}

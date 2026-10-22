@@ -15,6 +15,7 @@
 
 - 有连接进来时，如果到对应服务器的 SSH 连接不存在或已断开，就自动建立，再把数据转发过去；
 - 同一台服务器只保持一条 SSH 连接（OpenSSH ControlMaster），上面可以同时跑多个客户端连接；
+- 某台服务器的隧道连续 30 分钟没有任何数据时，关闭这条 SSH 连接以释放资源，下一次有连接进来时再重建（`idle_timeout`）。
 - 检测到睡眠唤醒或主网卡变化（比如换了 Wi-Fi）时，主动丢弃已经失效的 SSH 连接，下一次连接时重建。VPN 连接、断开和虚拟网卡的变化会被忽略。
 
 它直接调用系统自带的 `/usr/bin/ssh`，所以 `~/.ssh/config` 里的 Host 别名、`ProxyJump`、`IdentityFile`、ssh-agent 都和在终端里一样能用。只支持 TCP。
@@ -83,7 +84,9 @@ tunnels:
     remote: 10.0.1.5:6379
 ```
 
-可选的全局项包括 `ssh_binary`（默认 `/usr/bin/ssh`）、`connect_timeout`（默认 `10s`）、`ssh_config_file`（相当于 `ssh -F`），详见 [config.example.yaml](config.example.yaml)。
+可选的全局项包括 `ssh_binary`（默认 `/usr/bin/ssh`）、`connect_timeout`（默认 `10s`）、`idle_timeout`（默认 `30m`）、`ssh_config_file`（相当于 `ssh -F`），详见 [config.example.yaml](config.example.yaml)。
+
+`idle_timeout` 按数据判断：同一台服务器上所有隧道、任一方向只要有数据流动，就算有活动。超时后会关闭这条 SSH 连接，其中也包括一直开着但始终没有数据的客户端连接，比如数据库连接池里的空闲连接；常见的数据库和 Redis 客户端会自动重连。设成 `idle_timeout: 0` 则永不回收。
 
 修改配置后执行下面的命令生效：
 
@@ -107,7 +110,7 @@ prod-mysql  4333  ubuntu@203.0.113.180  localhost:4333  ok      up     2      5m
 prod-redis  6379  prod-redis            10.0.1.5:6379   ok      error  0      30s ago  ssh: connect to host … Operation timed out
 ```
 
-- `STATE` 是到这台服务器的 SSH 连接状态，取值为 `idle`（还没连 / 已主动断开）、`connecting`、`up`、`error`。
+- `STATE` 是到这台服务器的 SSH 连接状态，取值为 `idle`（还没连、睡眠唤醒或换网络后已断开，或被 `idle_timeout` 回收）、`connecting`、`up`、`error`。
 - 加 `--json` 可以输出 JSON 格式。
 
 日志位于 `~/Library/Logs/ark/arkd.log`，自动轮转（10MB × 3 份）。

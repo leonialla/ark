@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -65,6 +66,9 @@ type Master struct {
 	spawns     int
 	gen        int // spawn number of the current master process
 	frozen     bool
+
+	// activity is the UnixNano time data last moved over this master.
+	activity atomic.Int64
 }
 
 type masterProc struct {
@@ -150,6 +154,7 @@ func (m *Master) Ensure(ctx context.Context) error {
 	} else {
 		m.failedAt = time.Time{}
 		m.setState(StateUp, "")
+		m.Touch()
 	}
 	close(done)
 	m.mu.Unlock()
@@ -384,6 +389,30 @@ func (m *Master) Status() Status {
 
 // SSHConfigFile is the -F file passed to ssh, or "".
 func (m *Master) SSHConfigFile() string { return m.o.SSHConfigFile }
+
+// Touch records that data just moved over the master.
+func (m *Master) Touch() { m.activity.Store(time.Now().UnixNano()) }
+
+// LastActivity is when data last moved over the master (or it came up).
+func (m *Master) LastActivity() time.Time {
+	if v := m.activity.Load(); v != 0 {
+		return time.Unix(0, v)
+	}
+	return time.Time{}
+}
+
+// ReapIfIdle closes the master if it is up and no data has moved over it for
+// idle as of now. It reports whether it closed it.
+func (m *Master) ReapIfIdle(now time.Time, idle time.Duration) bool {
+	m.mu.Lock()
+	up, gen := m.state == StateUp && m.proc != nil, m.gen
+	m.mu.Unlock()
+	if !up || now.Sub(m.LastActivity()) < idle {
+		return false
+	}
+	m.ResetIf(gen, fmt.Sprintf("no data for %s", idle))
+	return true
+}
 
 // PID of the running master process, or 0.
 func (m *Master) PID() int {

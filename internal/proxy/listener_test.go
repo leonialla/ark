@@ -367,3 +367,26 @@ func TestNoTakeoverNonSSH(t *testing.T) {
 		t.Fatalf("Listen = %q, want it to mention %q", got, want)
 	}
 }
+
+func TestRelayTouchesMaster(t *testing.T) {
+	f := setup(t, testsshd.EchoServer(t))
+	c, err := net.Dial("tcp", v4(f.port))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.SetDeadline(time.Now().Add(10 * time.Second))
+	ping := func(msg string) {
+		io.WriteString(c, msg)
+		if _, err := io.ReadFull(c, make([]byte, len(msg))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ping("a")
+	before := f.m.LastActivity()
+	time.Sleep(100 * time.Millisecond)
+	ping("b")
+	if got := f.m.LastActivity(); got.Sub(before) < 50*time.Millisecond {
+		t.Fatalf("relayed data did not update activity: before=%v after=%v", before, got)
+	}
+}

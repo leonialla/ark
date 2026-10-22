@@ -18,6 +18,7 @@ type env struct {
 	s       *testsshd.Server
 	cfgPath string
 	sockDir string
+	extra   string // extra global config lines
 }
 
 func newEnv(t *testing.T) *env {
@@ -31,7 +32,7 @@ type tun struct {
 
 func (e *env) write(t *testing.T, tunnels ...tun) {
 	t.Helper()
-	cfg := fmt.Sprintf("ssh_config_file: %s\nsocket_dir: %s\nconnect_timeout: 5s\ntunnels:\n", e.s.ClientConfig, e.sockDir)
+	cfg := fmt.Sprintf("ssh_config_file: %s\nsocket_dir: %s\nconnect_timeout: 5s\n%stunnels:\n", e.s.ClientConfig, e.sockDir, e.extra)
 	for _, tu := range tunnels {
 		cfg += fmt.Sprintf("  - {local_port: %d, ssh: testhost, remote: %q}\n", tu.port, tu.remote)
 	}
@@ -208,5 +209,69 @@ func TestNewRejectsInvalidConfig(t *testing.T) {
 	os.WriteFile(p, []byte("tunnels: [{local_port: 1}]"), 0o600)
 	if _, err := New(p, nil); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func fastReap(t *testing.T) {
+	old := reapEvery
+	reapEvery = 100 * time.Millisecond
+	t.Cleanup(func() { reapEvery = old })
+}
+
+func waitState(t *testing.T, d *Daemon, want string, within time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	for d.Status()[0].State != want {
+		if time.Now().After(deadline) {
+			t.Fatalf("state = %s, want %s", d.Status()[0].State, want)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestIdleMasterReaped(t *testing.T) {
+	fastReap(t)
+	e := newEnv(t)
+	e.extra = "idle_timeout: 1s\n"
+	a := testsshd.FreePort(t)
+	e.write(t, tun{a, testsshd.EchoServer(t)})
+	d, _ := e.run(t)
+	dialEcho(t, a, "x").Close()
+	waitState(t, d, "idle", 4*time.Second)
+	dialEcho(t, a, "y").Close()
+	if st := d.Status()[0].State; st != "up" {
+		t.Fatalf("after reconnect state = %s", st)
+	}
+}
+
+func TestActiveConnectionNotReaped(t *testing.T) {
+	fastReap(t)
+	e := newEnv(t)
+	e.extra = "idle_timeout: 1s\n"
+	a := testsshd.FreePort(t)
+	e.write(t, tun{a, testsshd.EchoServer(t)})
+	d, _ := e.run(t)
+	c := dialEcho(t, a, "start")
+	defer c.Close()
+	for i := 0; i < 10; i++ {
+		time.Sleep(250 * time.Millisecond)
+		roundTrip(t, c, fmt.Sprintf("tick-%d", i))
+		if st := d.Status()[0].State; st != "up" {
+			t.Fatalf("busy master reaped at tick %d: state = %s", i, st)
+		}
+	}
+}
+
+func TestIdleReapDisabled(t *testing.T) {
+	fastReap(t)
+	e := newEnv(t)
+	e.extra = "idle_timeout: 0\n"
+	a := testsshd.FreePort(t)
+	e.write(t, tun{a, testsshd.EchoServer(t)})
+	d, _ := e.run(t)
+	dialEcho(t, a, "x").Close()
+	time.Sleep(1500 * time.Millisecond)
+	if st := d.Status()[0].State; st != "up" {
+		t.Fatalf("state = %s with idle_timeout 0", st)
 	}
 }

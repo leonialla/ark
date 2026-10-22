@@ -276,3 +276,39 @@ func TestMasterIgnoresAliasForwardings(t *testing.T) {
 	}
 	roundTrip(t, m, echo, "ping")
 }
+
+func TestReapIfIdle(t *testing.T) {
+	s := testsshd.Start(t)
+	echo := testsshd.EchoServer(t)
+	m := newMaster(t, s, "testhost")
+	if m.ReapIfIdle(time.Now().Add(time.Hour), 30*time.Minute) {
+		t.Fatal("reaped a master that was never up")
+	}
+	if err := m.Ensure(ctx(t)); err != nil {
+		t.Fatal(err)
+	}
+	up := m.LastActivity()
+	if up.IsZero() || time.Since(up) > 5*time.Second {
+		t.Fatalf("LastActivity after Ensure = %v", up)
+	}
+	m.Touch()
+	if !m.LastActivity().After(up) {
+		t.Fatal("Touch did not advance LastActivity")
+	}
+	if m.ReapIfIdle(time.Now().Add(29*time.Minute), 30*time.Minute) {
+		t.Fatal("reaped before the idle timeout")
+	}
+	if !m.ReapIfIdle(time.Now().Add(31*time.Minute), 30*time.Minute) {
+		t.Fatal("did not reap after the idle timeout")
+	}
+	if st := m.Status().State; st != StateIdle || m.Alive() {
+		t.Fatalf("after reap: state=%s alive=%v", st, m.Alive())
+	}
+	if m.ReapIfIdle(time.Now().Add(time.Hour), 30*time.Minute) {
+		t.Fatal("reaped an already idle master")
+	}
+	if err := m.Ensure(ctx(t)); err != nil {
+		t.Fatal(err)
+	}
+	roundTrip(t, m, echo, "back")
+}

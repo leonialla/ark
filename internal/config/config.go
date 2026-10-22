@@ -35,14 +35,18 @@ type Config struct {
 	SSHBinary      string
 	SSHConfigFile  string
 	ConnectTimeout time.Duration
-	SocketDir      string
-	Tunnels        []Tunnel
+	// IdleTimeout closes an SSH connection after this long without any relayed
+	// data on it; 0 disables. Default 30m.
+	IdleTimeout time.Duration
+	SocketDir   string
+	Tunnels     []Tunnel
 }
 
 type rawConfig struct {
 	SSHBinary      string   `yaml:"ssh_binary"`
 	SSHConfigFile  string   `yaml:"ssh_config_file"`
 	ConnectTimeout string   `yaml:"connect_timeout"`
+	IdleTimeout    *string  `yaml:"idle_timeout"`
 	SocketDir      string   `yaml:"socket_dir"`
 	Tunnels        []Tunnel `yaml:"tunnels"`
 }
@@ -98,6 +102,17 @@ func Parse(data []byte) (*Config, error) {
 			return nil, fmt.Errorf("connect_timeout: invalid duration %q", raw.ConnectTimeout)
 		}
 		cfg.ConnectTimeout = d
+	}
+	cfg.IdleTimeout = 30 * time.Minute
+	if raw.IdleTimeout != nil {
+		d, err := time.ParseDuration(*raw.IdleTimeout)
+		if *raw.IdleTimeout == "0" {
+			d, err = 0, nil
+		}
+		if err != nil || d < 0 {
+			return nil, fmt.Errorf("idle_timeout: invalid duration %q (use 0 to disable)", *raw.IdleTimeout)
+		}
+		cfg.IdleTimeout = d
 	}
 	if err := cfg.validate(); err != nil {
 		return nil, err

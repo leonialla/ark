@@ -14,6 +14,9 @@ import (
 	"github.com/leonialla/ark/internal/sshmux"
 )
 
+// reapEvery is how often masters are checked against idle_timeout.
+var reapEvery = 30 * time.Second
+
 type TunnelStatus struct {
 	Name      string    `json:"name"`
 	LocalPort int       `json:"local_port"`
@@ -63,11 +66,15 @@ func (d *Daemon) Run(ctx context.Context, events <-chan netwatch.Event) error {
 	d.mu.Unlock()
 	d.log.Info("daemon started", "config", d.cfgPath, "tunnels", n)
 
+	reap := time.NewTicker(reapEvery)
+	defer reap.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			d.shutdown()
 			return nil
+		case <-reap.C:
+			d.reapIdle()
 		case ev, ok := <-events:
 			if !ok {
 				events = nil
@@ -157,6 +164,24 @@ func (d *Daemon) apply(cfg, old *config.Config) {
 			m.Close()
 			delete(d.masters, target)
 		}
+	}
+}
+
+// reapIdle closes masters that have relayed no data for idle_timeout.
+func (d *Daemon) reapIdle() {
+	d.mu.Lock()
+	idle := d.cfg.IdleTimeout
+	masters := make([]*sshmux.Master, 0, len(d.masters))
+	for _, m := range d.masters {
+		masters = append(masters, m)
+	}
+	d.mu.Unlock()
+	if idle <= 0 {
+		return
+	}
+	now := time.Now()
+	for _, m := range masters {
+		m.ReapIfIdle(now, idle)
 	}
 }
 
