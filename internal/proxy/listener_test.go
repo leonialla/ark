@@ -215,3 +215,67 @@ func TestStopClosesActiveConns(t *testing.T) {
 		t.Fatal("port still accepting after Stop")
 	}
 }
+
+func TestLongLivedConnectionOutlivesEnsureBound(t *testing.T) {
+	old := ensureTimeout
+	ensureTimeout = time.Second
+	t.Cleanup(func() { ensureTimeout = old })
+	f := setup(t, testsshd.EchoServer(t))
+	c, err := net.Dial("tcp", v4(f.port))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	for i := 0; i < 3; i++ {
+		c.SetDeadline(time.Now().Add(5 * time.Second))
+		if _, err := c.Write([]byte("ping")); err != nil {
+			t.Fatalf("write %d: %v", i, err)
+		}
+		buf := make([]byte, 4)
+		if _, err := io.ReadFull(c, buf); err != nil {
+			t.Fatalf("round trip %d after %ds: %v", i, i, err)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func TestPoolOnDeadMasterAllRecover(t *testing.T) {
+	f := setup(t, testsshd.EchoServer(t))
+	echoRoundTrip(t, v4(f.port), []byte("first"))
+	f.m.FreezeStateForTest(true)
+	syscall.Kill(f.m.PID(), syscall.SIGKILL)
+	for f.m.Alive() {
+		time.Sleep(20 * time.Millisecond)
+	}
+	errs := make(chan error, 10)
+	for i := 0; i < 10; i++ {
+		go func(i int) {
+			c, err := net.Dial("tcp", v4(f.port))
+			if err != nil {
+				errs <- err
+				return
+			}
+			defer c.Close()
+			c.SetDeadline(time.Now().Add(15 * time.Second))
+			msg := fmt.Sprintf("conn-%d", i)
+			if _, err := io.WriteString(c, msg); err != nil {
+				errs <- err
+				return
+			}
+			buf := make([]byte, len(msg))
+			if _, err := io.ReadFull(c, buf); err != nil || string(buf) != msg {
+				errs <- fmt.Errorf("conn %d: got %q err %v", i, buf, err)
+				return
+			}
+			errs <- nil
+		}(i)
+	}
+	for i := 0; i < 10; i++ {
+		if err := <-errs; err != nil {
+			t.Error(err)
+		}
+	}
+	if e := f.l.Status().LastError; e != "" {
+		t.Logf("LastError = %q", e)
+	}
+}

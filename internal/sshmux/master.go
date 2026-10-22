@@ -26,6 +26,9 @@ const (
 	StateError      State = "error"
 )
 
+// errResetWhileConnecting means Reset ran while a connect was in flight.
+var errResetWhileConnecting = errors.New("master was reset while connecting")
+
 // failureBackoff is how long a failed connect is reused instead of retried.
 var failureBackoff = time.Second
 
@@ -47,6 +50,7 @@ type Status struct {
 
 type Master struct {
 	o    Options
+	dest string // o.Target as passed to ssh
 	sock string
 	log  *slog.Logger
 
@@ -59,6 +63,7 @@ type Master struct {
 	connectErr error
 	failedAt   time.Time
 	spawns     int
+	gen        int // spawn number of the current master process
 	frozen     bool
 }
 
@@ -77,6 +82,7 @@ func New(o Options) *Master {
 	sum := sha256.Sum256([]byte(o.Target))
 	return &Master{
 		o:     o,
+		dest:  sshDestination(o.Target),
 		sock:  filepath.Join(o.SocketDir, hex.EncodeToString(sum[:])[:16]+".sock"),
 		log:   log.With("ssh", o.Target),
 		state: StateIdle,
@@ -127,12 +133,18 @@ func (m *Master) Ensure(ctx context.Context) error {
 	m.mu.Unlock()
 
 	m.log.Info("connecting master")
-	err := m.connect(ctx)
+	p, err := m.connect(ctx)
 
 	m.mu.Lock()
+	if err == nil && m.proc != p {
+		err = errResetWhileConnecting
+	}
 	m.connecting = nil
 	m.connectErr = err
-	if err != nil {
+	if errors.Is(err, errResetWhileConnecting) {
+		// Not a failure of the target: no backoff, the next Ensure reconnects.
+		m.setState(StateIdle, "")
+	} else if err != nil {
 		m.failedAt = time.Now()
 		m.setState(StateError, err.Error())
 	} else {
@@ -155,12 +167,19 @@ func (m *Master) baseArgs() []string {
 	if m.o.SSHConfigFile != "" {
 		args = append(args, "-F", m.o.SSHConfigFile)
 	}
-	return append(args, "-S", m.sock)
+	// Every invocation only carries -W channels or control commands, so forwards
+	// and forking configured on the alias must not apply.
+	return append(args, "-S", m.sock,
+		"-o", "ClearAllForwardings=yes",
+		"-o", "ForkAfterAuthentication=no")
 }
 
-func (m *Master) connect(ctx context.Context) error {
+func (m *Master) connect(ctx context.Context) (*masterProc, error) {
 	if err := os.MkdirAll(m.o.SocketDir, 0o700); err != nil {
-		return err
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	m.clearStaleSocket()
 
@@ -175,15 +194,16 @@ func (m *Master) connect(ctx context.Context) error {
 		"-o", "ServerAliveInterval=10",
 		"-o", "ServerAliveCountMax=2",
 		"-o", "ExitOnForwardFailure=yes",
-		m.o.Target)
+		m.dest)
 	p := &masterProc{cmd: exec.Command(m.o.SSHBinary, args...), stderr: &tailBuffer{}, exited: make(chan struct{})}
 	p.cmd.Stderr = p.stderr
 	if err := p.cmd.Start(); err != nil {
-		return fmt.Errorf("start ssh: %w", err)
+		return nil, fmt.Errorf("start ssh: %w", err)
 	}
 	m.mu.Lock()
 	m.proc = p
 	m.spawns++
+	m.gen = m.spawns
 	m.mu.Unlock()
 	go m.wait(p)
 
@@ -195,18 +215,18 @@ func (m *Master) connect(ctx context.Context) error {
 		select {
 		case <-p.exited:
 			if msg := p.stderr.Summary(); msg != "" {
-				return errors.New(msg)
+				return p, errors.New(msg)
 			}
-			return fmt.Errorf("ssh exited: %v", p.cmd.ProcessState)
+			return p, fmt.Errorf("ssh exited: %v", p.cmd.ProcessState)
 		case <-deadline.C:
 			m.stop(p)
-			return fmt.Errorf("timed out after %v waiting for ssh master", m.o.ConnectTimeout)
+			return p, fmt.Errorf("timed out after %v waiting for ssh master", m.o.ConnectTimeout)
 		case <-ctx.Done():
 			m.stop(p)
-			return ctx.Err()
+			return p, ctx.Err()
 		case <-tick.C:
 			if m.check() {
-				return nil
+				return p, nil
 			}
 		}
 	}
@@ -240,7 +260,7 @@ func (m *Master) wait(p *masterProc) {
 func (m *Master) check() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	args := append(m.baseArgs(), "-O", "check", m.o.Target)
+	args := append(m.baseArgs(), "-O", "check", m.dest)
 	return exec.CommandContext(ctx, m.o.SSHBinary, args...).Run() == nil
 }
 
@@ -250,7 +270,7 @@ func (m *Master) clearStaleSocket() {
 	}
 	if m.check() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		args := append(m.baseArgs(), "-O", "exit", m.o.Target)
+		args := append(m.baseArgs(), "-O", "exit", m.dest)
 		exec.CommandContext(ctx, m.o.SSHBinary, args...).Run()
 		cancel()
 	}
@@ -263,7 +283,7 @@ func (m *Master) stop(p *masterProc) {
 	p.killed = true
 	m.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	args := append(m.baseArgs(), "-O", "exit", m.o.Target)
+	args := append(m.baseArgs(), "-O", "exit", m.dest)
 	exec.CommandContext(ctx, m.o.SSHBinary, args...).Run()
 	cancel()
 	select {
@@ -276,15 +296,53 @@ func (m *Master) stop(p *masterProc) {
 }
 
 // Dial opens a channel to remote (host:port as seen from the server) over the master.
-// It does not connect the master; call Ensure first.
+// It does not connect the master; call Ensure first. The channel lives until ctx ends
+// or it is closed. Its Gen records which master process it was opened on.
 func (m *Master) Dial(ctx context.Context, remote string) (*Channel, error) {
+	m.mu.Lock()
+	gen := m.gen
+	m.mu.Unlock()
 	args := append(m.baseArgs(),
 		"-o", "ControlMaster=no",
 		"-o", "BatchMode=yes",
 		// If the master is gone, fail instead of silently opening a direct connection.
 		"-o", "ProxyCommand=false",
-		"-W", remote, m.o.Target)
-	return startChannel(exec.CommandContext(ctx, m.o.SSHBinary, args...))
+		"-W", remote, m.dest)
+	ch, err := startChannel(exec.CommandContext(ctx, m.o.SSHBinary, args...))
+	if err != nil {
+		return nil, err
+	}
+	ch.Gen = gen
+	return ch, nil
+}
+
+// GenDead reports whether master process gen is gone: replaced by a newer one,
+// exited, or not answering on its control socket.
+func (m *Master) GenDead(gen int) bool {
+	m.mu.Lock()
+	cur, p := m.gen, m.proc
+	m.mu.Unlock()
+	if cur != gen || p == nil {
+		return true
+	}
+	select {
+	case <-p.exited:
+		return true
+	default:
+	}
+	return !m.check()
+}
+
+// ResetIf resets the master only if gen is still the current master process,
+// so a stale caller can never tear down a newer master.
+func (m *Master) ResetIf(gen int, reason string) {
+	m.mu.Lock()
+	if m.gen != gen {
+		m.mu.Unlock()
+		return
+	}
+	m.mu.Unlock()
+	m.Reset(reason)
 }
 
 // Reset tears down the master connection; the next Ensure reconnects.

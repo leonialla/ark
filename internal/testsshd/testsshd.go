@@ -17,11 +17,14 @@ import (
 const sshdPath = "/usr/sbin/sshd"
 
 // Server is a running sshd. ClientConfig is an ssh_config file (for ssh -F)
-// defining the Host aliases "testhost", "jumped" (ProxyJump via testhost)
-// and "badport" (nothing listening).
+// defining the Host aliases "testhost", "jumped" (ProxyJump via testhost),
+// "badport" (nothing listening), "forwarding" (like testhost, plus a
+// LocalForward on ForwardPort and ForkAfterAuthentication yes), and a
+// "127.0.0.1" block so host:port destinations reach the server.
 type Server struct {
 	Port         int
 	ClientConfig string
+	ForwardPort  int
 
 	dir     string
 	sshdCfg string
@@ -51,7 +54,7 @@ func Start(t testing.TB) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{Port: FreePort(t), dir: dir, sshdCfg: filepath.Join(dir, "sshd_config"), ClientConfig: filepath.Join(dir, "ssh_config")}
+	s := &Server{Port: FreePort(t), ForwardPort: FreePort(t), dir: dir, sshdCfg: filepath.Join(dir, "sshd_config"), ClientConfig: filepath.Join(dir, "ssh_config")}
 
 	sshdCfg := fmt.Sprintf(`Port %d
 ListenAddress 127.0.0.1
@@ -75,8 +78,9 @@ LogLevel ERROR
     UserKnownHostsFile /dev/null
     LogLevel ERROR
 `, u.Username, dir)
-	clientCfg := fmt.Sprintf("Host testhost\n    Port %d\n%s\nHost jumped\n    Port %d\n    ProxyJump testhost\n%s\nHost badport\n    Port %d\n%s",
-		s.Port, common, s.Port, common, FreePort(t), common)
+	clientCfg := fmt.Sprintf("Host testhost\n    Port %d\n%s\nHost jumped\n    Port %d\n    ProxyJump testhost\n%s\nHost badport\n    Port %d\n%s"+
+		"\nHost forwarding\n    Port %d\n    LocalForward 127.0.0.1:%d 127.0.0.1:1\n    ForkAfterAuthentication yes\n%s\nHost 127.0.0.1\n%s",
+		s.Port, common, s.Port, common, FreePort(t), common, s.Port, s.ForwardPort, common, common)
 	if err := os.WriteFile(s.sshdCfg, []byte(sshdCfg), 0o600); err != nil {
 		t.Fatal(err)
 	}

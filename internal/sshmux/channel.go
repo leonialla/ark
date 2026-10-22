@@ -12,6 +12,9 @@ import (
 // Channel is one `ssh -W` stdio forward multiplexed over a master connection.
 // Reads come from the remote end, writes go to it.
 type Channel struct {
+	// Gen is the master process generation the channel was opened on.
+	Gen int
+
 	cmd    *exec.Cmd
 	stdin  *os.File
 	stdout *os.File

@@ -2,8 +2,11 @@ package sshmux
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net"
 	"os"
+	"os/user"
 	"strings"
 	"sync"
 	"syscall"
@@ -215,4 +218,61 @@ func TestFailureBackoff(t *testing.T) {
 	if m.Spawns() != 2 {
 		t.Fatalf("spawns after backoff = %d", m.Spawns())
 	}
+}
+
+func TestEnsureHostPortTarget(t *testing.T) {
+	s := testsshd.Start(t)
+	echo := testsshd.EchoServer(t)
+	u, _ := user.Current()
+	for _, target := range []string{
+		fmt.Sprintf("127.0.0.1:%d", s.Port),
+		fmt.Sprintf("%s@127.0.0.1:%d", u.Username, s.Port),
+	} {
+		m := newMaster(t, s, target)
+		if err := m.Ensure(ctx(t)); err != nil {
+			t.Fatalf("%s: %v", target, err)
+		}
+		roundTrip(t, m, echo, "ping")
+		if m.Status().Target != target {
+			t.Fatalf("Target = %q", m.Status().Target)
+		}
+	}
+}
+
+func TestSSHDestination(t *testing.T) {
+	cases := map[string]string{
+		"prod-redis":              "prod-redis",
+		"ubuntu@203.0.113.180":    "ubuntu@203.0.113.180",
+		"ubuntu@203.0.113.4:2222": "ssh://ubuntu@203.0.113.4:2222",
+		"203.0.113.4:2222":        "ssh://203.0.113.4:2222",
+		"u@[2001:db8::1]:2222":    "ssh://u@[2001:db8::1]:2222",
+		"2001:db8::1":             "2001:db8::1",
+		"ssh://u@h:22":            "ssh://u@h:22",
+		"host:notaport":           "host:notaport",
+	}
+	for in, want := range cases {
+		if got := sshDestination(in); got != want {
+			t.Errorf("sshDestination(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestMasterIgnoresAliasForwardings(t *testing.T) {
+	s := testsshd.Start(t)
+	echo := testsshd.EchoServer(t)
+	// Our own listener already owns the alias's LocalForward port.
+	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", s.ForwardPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	m := newMaster(t, s, "forwarding")
+	if err := m.Ensure(ctx(t)); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(500 * time.Millisecond)
+	if st := m.Status().State; st != StateUp || !m.Alive() {
+		t.Fatalf("state=%s alive=%v", st, m.Alive())
+	}
+	roundTrip(t, m, echo, "ping")
 }
