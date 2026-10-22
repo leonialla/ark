@@ -10,12 +10,15 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
+	sshtunneldaemon "ssh-tunnel-daemon"
 	"ssh-tunnel-daemon/internal/config"
 	"ssh-tunnel-daemon/internal/control"
 	"ssh-tunnel-daemon/internal/daemon"
+	"ssh-tunnel-daemon/internal/launchd"
 	"ssh-tunnel-daemon/internal/logging"
 	"ssh-tunnel-daemon/internal/netwatch"
 )
@@ -142,5 +145,37 @@ func reloadCmd(args []string) error {
 	return nil
 }
 
-func installCmd(args []string) error   { return errors.New("install: not implemented yet") }
-func uninstallCmd(args []string) error { return errors.New("uninstall: not implemented yet") }
+func installCmd(args []string) error {
+	fs := flag.NewFlagSet("install", flag.ExitOnError)
+	cfgPath := fs.String("config", config.DefaultPath(), "config file")
+	fs.Parse(args)
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if exe, err = filepath.EvalSymlinks(exe); err != nil {
+		return err
+	}
+	abs, err := filepath.Abs(*cfgPath)
+	if err != nil {
+		return err
+	}
+	created, err := launchd.Install(exe, abs, filepath.Dir(logging.DefaultPath()), sshtunneldaemon.ExampleConfig)
+	if err != nil {
+		return err
+	}
+	if created {
+		fmt.Printf("no config found; wrote an example to %s\nedit it, then run `ssh-tunnel-daemon install` again\n", abs)
+		return nil
+	}
+	fmt.Printf("installed launchd agent %s (%s)\nlogs: %s\n", launchd.Label, launchd.PlistPath(), logging.DefaultPath())
+	return nil
+}
+
+func uninstallCmd(args []string) error {
+	if err := launchd.Uninstall(); err != nil {
+		return err
+	}
+	fmt.Println("launchd agent removed (config and logs kept)")
+	return nil
+}
