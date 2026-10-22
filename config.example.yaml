@@ -1,0 +1,21 @@
+# ssh-tunnel-daemon 配置文件
+# 默认位置：~/.config/ssh-tunnel-daemon/config.yaml
+# 修改后执行 `ssh-tunnel-daemon reload` 生效。
+
+# 以下全局选项均可省略
+# ssh_binary: /usr/bin/ssh      # 调用的 ssh 程序（绝对路径）
+# connect_timeout: 10s          # 建立 SSH 连接的超时时间
+# ssh_config_file: ~/.ssh/config # 指定另一份 ssh 配置（相当于 ssh -F）
+
+tunnels:
+  # 本地 127.0.0.1:4333 / [::1]:4333 → 经 ubuntu@203.0.113.180 → 服务器上的 localhost:4333
+  - name: prod-mysql
+    local_port: 4333
+    ssh: ubuntu@203.0.113.180
+    remote: localhost:4333
+
+  # ssh 也可以写 ~/.ssh/config 里的 Host 别名（支持 ProxyJump 等全部配置）
+  - name: prod-redis
+    local_port: 6379
+    ssh: prod-redis
+    remote: 10.0.1.5:6379
